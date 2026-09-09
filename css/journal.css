@@ -1,0 +1,50 @@
+/* ================================
+   霧晴れの開拓日誌（日記・読書記録）Phase8
+================================ */
+
+.journal-gate-card { text-align: center; }
+.journal-gate-card.is-locked { opacity: 0.92; }
+.journal-gate-card h3 { color: var(--color-ink); }
+
+.diary-field-label {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  margin-bottom: 4px;
+}
+
+.diary-history-card p { color: var(--color-ink-soft); font-size: var(--fs-sm); margin: 4px 0; }
+
+.books-list { display: flex; flex-direction: column; gap: var(--spacing-2); }
+.book-list-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: var(--border-thin);
+  cursor: pointer;
+}
+.book-list-row h3 { color: var(--color-ink); }
+.book-list-row p { color: var(--color-ink-soft); font-size: var(--fs-sm); margin: 2px 0; }
+
+.chapter-row, .critical-question-row { margin-bottom: var(--spacing-3); }
+
+.quote-row { margin-bottom: var(--spacing-2); }
+.quote-text { font-family: var(--font-display); color: var(--color-ink); }
+.quote-note { font-size: var(--fs-xs); color: var(--color-ink-soft); }
+
+.ladder-chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-3);
+}
+.ladder-item {
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  max-width: 220px;
+}
+.ladder-abstract { background: rgba(111,143,92,0.18); color: var(--color-moss-dark); }
+.ladder-concrete { background: rgba(193,122,66,0.18); color: var(--color-amber-dark); }
+.ladder-kind-badge { display: block; font-size: var(--fs-xs); font-weight: 700; opacity: 0.75; }

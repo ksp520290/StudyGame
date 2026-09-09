@@ -1,0 +1,224 @@
+/* ================================
+   問題・クイズ画面（Phase2）
+================================ */
+
+.quiz-progress {
+  color: var(--color-ink);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--spacing-2);
+  text-align: center;
+}
+
+.quiz-item .quiz-prompt {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--color-ink);
+  margin-bottom: var(--spacing-3);
+}
+
+.quiz-shown-answer {
+  font-size: var(--fs-lg);
+  font-family: var(--font-display);
+  text-align: center;
+  margin-bottom: var(--spacing-3);
+  color: var(--color-amber-dark);
+}
+
+.quiz-choice-row {
+  display: flex;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+}
+
+.quiz-choice-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-2);
+}
+
+.quiz-choice-btn {
+  min-height: 52px;
+}
+
+.reorder-answer-display {
+  min-height: 40px;
+  border-bottom: 2px solid var(--color-ink-soft);
+  font-size: var(--fs-lg);
+  font-family: var(--font-display);
+  letter-spacing: 0.1em;
+  margin-bottom: var(--spacing-3);
+  padding: 4px 0;
+}
+
+.reorder-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--spacing-3);
+}
+
+.char-chip {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-ink-soft);
+  background: #fff;
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  cursor: pointer;
+}
+
+.result-screen { display: flex; flex-direction: column; gap: var(--spacing-3); }
+.result-success-title { color: var(--color-gold); font-size: var(--fs-2xl); text-align: center; }
+.result-fail-title { color: var(--color-ink); text-align: center; }
+
+/* --- 【追加要望対応】フラッシュカード画面（結果画面「カード」ボタンから遷移） --- */
+.flashcard-screen { display: flex; flex-direction: column; align-items: stretch; gap: var(--spacing-2); }
+.flashcard-counter {
+  text-align: center;
+  color: var(--color-ink-soft);
+  font-size: var(--fs-xs);
+}
+.flashcard {
+  min-height: 180px;
+  background: var(--color-parchment);
+  border: var(--border-double);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.flashcard:active { transform: scale(0.98); }
+.flashcard.is-flipped { background: rgba(212, 165, 90, 0.18); }
+.flashcard-face-label {
+  font-family: var(--font-display);
+  font-size: var(--fs-xs);
+  color: var(--color-amber-dark);
+  letter-spacing: 0.1em;
+}
+.flashcard-face-content {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--color-ink);
+  white-space: pre-wrap;
+}
+
+.reward-panel .reward-line {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  padding: 4px 0;
+}
+
+.answer-review-list { display: flex; flex-direction: column; gap: 6px; }
+.answer-review-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.answer-review-row:hover { filter: brightness(0.97); }
+.answer-review-row.is-correct { background: rgba(111,143,92,0.15); }
+.answer-review-row.is-wrong { background: rgba(164,80,63,0.15); }
+.answer-correct-value { color: var(--color-ink-soft); }
+.answer-review-note-badge {
+  font-size: var(--fs-xs);
+  color: var(--color-link);
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+/* --- 問題の詳細（補足情報）ポップアップ --- */
+.answer-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-3);
+}
+.answer-detail-panel .answer-detail-question {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  flex: 1 1 auto;
+}
+.answer-detail-note-add-btn {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+.answer-detail-compare {
+  display: flex;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-3);
+}
+.answer-detail-compare > div { flex: 1 1 0; }
+.answer-detail-compare .label { font-size: var(--fs-xs); color: var(--color-ink-soft); margin-bottom: 2px; }
+.answer-detail-compare .value { font-size: var(--fs-base); font-weight: 700; }
+.answer-detail-compare .user-answer .value { color: var(--color-danger); }
+.answer-detail-compare .correct-answer .value { color: var(--color-moss-dark); }
+.answer-detail-note {
+  border-top: var(--border-thin);
+  padding-top: var(--spacing-2);
+  font-size: var(--fs-sm);
+  color: var(--color-ink-soft);
+  white-space: pre-wrap;
+}
+
+.stage-row {
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+.stage-row-title { font-weight: 600; margin-bottom: 6px; }
+.stage-level-buttons { display: flex; gap: 8px; }
+.stage-level-buttons .level-cleared { opacity: 0.6; }
+
+.review-accordion {
+  background: var(--color-parchment);
+  border: var(--border-thin);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--spacing-2);
+  padding: 8px 12px;
+}
+.review-accordion summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 6px 0;
+}
+.review-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  margin: 4px 0;
+}
+.review-row-available { background: var(--color-review-available); }
+.review-row-overdue { background: var(--color-review-none); }
+
+.review-typing-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--spacing-2);
+}
+.review-typing-input, .review-textarea {
+  width: 100%;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-ink-soft);
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  margin-bottom: var(--spacing-2);
+}
+.review-textarea { min-height: 80px; resize: vertical; }
+.char-counter { text-align: right; font-size: var(--fs-xs); color: var(--color-ink-soft); margin-bottom: var(--spacing-2); }

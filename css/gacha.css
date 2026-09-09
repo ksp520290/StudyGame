@@ -1,0 +1,59 @@
+/* ================================
+   ガチャ・キャラクター画面（Phase7）
+================================ */
+
+.gacha-cost-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: var(--fs-sm);
+  color: var(--color-ink-soft);
+}
+.gacha-cost-row .value { color: var(--color-ink); font-weight: 700; }
+
+.gacha-result-box {
+  margin-top: var(--spacing-3);
+  min-height: 24px;
+}
+.gacha-result-line {
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  text-align: center;
+}
+.gacha-result-line.gacha-hit { background: rgba(111,143,92,0.15); color: var(--color-moss-dark); }
+.gacha-result-line.gacha-miss { background: rgba(0,0,0,0.06); color: var(--color-ink-soft); }
+
+/* --- キャラクター完成演出（仕様29章：全画面演出） --- */
+.character-complete-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10,14,22,0.92);
+  z-index: 950;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-3);
+  text-align: center;
+  padding: var(--spacing-4);
+}
+.character-complete-image { font-size: 96px; line-height: 1; }
+.character-complete-image.as-image { width: 140px; height: 140px; object-fit: cover; border-radius: var(--radius-md); font-size: 0; }
+.character-complete-overlay h2 { color: var(--color-gold); }
+.character-complete-dialogue {
+  color: var(--color-parchment);
+  font-family: var(--font-display);
+  max-width: 320px;
+}
+.character-complete-overlay .btn { max-width: 240px; }
+
+/* --- キャラクター一覧画面 --- */
+.character-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-2);
+}
+.character-card-image { font-size: 36px; line-height: 1; }
+.character-card-image.as-image { width: 48px; height: 48px; object-fit: cover; border-radius: var(--radius-sm); font-size: 0; }

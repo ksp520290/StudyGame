@@ -1,0 +1,90 @@
+/* ================================
+   レスポンシブ対応 Phase10
+   （仕様72章：モバイルファースト寄り、PCでも快適に）
+   ベースのCSSはモバイル前提で書かれているため、ここでは
+   タブレット・PC幅のときに「画面中央に最大幅を持たせる」
+   「グリッドで並べる」等の上書きのみを行う。
+================================ */
+
+/* タブレット以上：画面中央に寄せて余白を作る */
+@media (min-width: 700px) {
+  #screen-container {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .main-nav {
+    max-width: 720px;
+    margin: 0 auto;
+    left: 0;
+    right: 0;
+  }
+  .video-overlay { max-width: none; }
+}
+
+/* デスクトップ幅：ホーム画面のジャンル進捗・世界サマリを2カラムに */
+@media (min-width: 1000px) {
+  #screen-container {
+    max-width: 960px;
+  }
+  .main-nav {
+    max-width: 960px;
+  }
+  .home-header {
+    max-width: 100%;
+  }
+
+  .explore-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .explore-list .explore-btn {
+    flex: 1 1 260px;
+  }
+
+  .books-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-3);
+  }
+}
+
+/* PCではマウスホバーでボタンの反応を分かりやすくする（タップ端末には影響しない） */
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover { filter: brightness(1.06); }
+  .icon-btn:hover { filter: brightness(1.15); }
+  .explore-btn:hover, .book-list-row:hover { filter: brightness(0.98); }
+}
+
+/* 十分なタップ領域の確保（仕様76章） */
+.icon-btn, .nav-btn, .btn, .char-chip {
+  min-height: 44px;
+}
+
+/* ================================
+   アクセシビリティ（仕様76章）
+================================ */
+
+/* キーボード操作時のフォーカスを常にはっきり見せる（マウスクリック時は出さない） */
+:focus { outline: none; }
+:focus-visible {
+  outline: 3px solid var(--color-gold);
+  outline-offset: 2px;
+}
+
+/* input/textarea/selectはキーボード操作の主対象なので、マウス操作時も分かりやすくする */
+input:focus, textarea:focus, select:focus {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 1px;
+}
+
+/* スクリーンリーダー専用テキスト（視覚的には隠すが読み上げには含める） */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "dataVersion": 1,
+    "description": "初回起動用サンプルデータ。設定画面から自由に編集・追加・CSVインポート可能。"
+  },
+  "genres": [
+    {
+      "id": "genre_english",
+      "name": "英語",
+      "title": "英語のはじめの一歩",
+      "questionSets": [
+        {
+          "id": "qs_english_word",
+          "name": "単語",
+          "quests": [
+            {
+              "id": "quest_word_unit1",
+              "name": "Unit1",
+              "questions": [
+                { "id": "q_001", "question": "「apple」の意味は？", "answer": "りんご", "antonym": "", "synonyms": ["林檎"], "unrelated": ["机", "空", "走る"] },
+                { "id": "q_002", "question": "「happy」の意味は？", "answer": "幸せな", "antonym": "悲しい", "synonyms": ["嬉しい"], "unrelated": ["石", "遅い", "青い"] },
+                { "id": "q_003", "question": "「difficult」の意味は？", "answer": "難しい", "antonym": "簡単な", "synonyms": ["困難な"], "unrelated": ["甘い", "速い", "軽い"] },
+                { "id": "q_004", "question": "「begin」の意味は？", "answer": "始める", "antonym": "終える", "synonyms": ["開始する"], "unrelated": ["食べる", "眠る", "笑う"] },
+                { "id": "q_005", "question": "「quiet」の意味は？", "answer": "静かな", "antonym": "うるさい", "synonyms": ["穏やかな"], "unrelated": ["熱い", "重い", "新しい"] }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

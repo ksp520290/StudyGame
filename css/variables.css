@@ -1,0 +1,65 @@
+/* ================================
+   デザイントークン
+   グレー背景・黒文字・茶色ブロック・水色の強調（仕様変更対応版）
+   ボタン（.btn-primary / .btn-secondary / .btn-moss / .icon-btn）の配色は
+   従来のまま変更しないため、専用の --btn-* 変数に退避してある。
+================================ */
+:root {
+  /* --- 全体背景（グレー） --- */
+  --color-night: #b7b7b7;
+  --color-night-soft: #a1a1a1;
+
+  /* --- ブロック（パネル・カード）背景（茶色） --- */
+  --color-parchment: #ab7a4e;
+  --color-parchment-dark: #8c5f3b;
+
+  /* --- 基本文字色（黒） --- */
+  --color-ink: #000000;
+  --color-ink-soft: #262626;
+
+  /* --- 強調・URL（水色） --- */
+  --color-link: #1fb6d6;
+  --color-link-dark: #158aa3;
+
+  --color-moss: #6f8f5c;
+  --color-moss-dark: #4f6b40;
+  --color-amber: #c17a42;
+  --color-amber-dark: #9c5f30;
+  --color-gold: #b8925a;
+  --color-danger: #a4503f;
+
+  --color-review-none: #d6d6d2;
+  --color-review-available: #e0b98a;
+
+  /* --- ボタン専用配色（従来通り。他の変数を変更してもボタンの見た目は変わらない） --- */
+  --btn-secondary-bg: #262e42;
+  --btn-secondary-text: #ecdfc2;
+
+  --fog-opacity-initial: 0.7;
+  --fog-opacity-lv1: 0.5;
+  --fog-opacity-lv2: 0.3;
+  --fog-opacity-lv3: 0;
+
+  --font-display: "Hiragino Mincho ProN", "Yu Mincho", "游明朝", serif;
+  --font-body: "Hiragino Sans", "Yu Gothic", "游ゴシック", sans-serif;
+
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.875rem;
+  --fs-base: 1rem;
+  --fs-md: 1.125rem;
+  --fs-lg: 1.375rem;
+  --fs-xl: 1.75rem;
+  --fs-2xl: 2.25rem;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --nav-height: 64px;
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 16px;
+  --spacing-4: 24px;
+  --spacing-5: 32px;
+
+  --border-thin: 1px solid var(--color-parchment-dark);
+  --border-double: 3px double var(--color-ink-soft);
+}

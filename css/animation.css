@@ -1,0 +1,62 @@
+/* ================================
+   アニメーション定義
+================================ */
+
+@keyframes pulse-once {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+.pulse-once { animation: pulse-once 0.3s ease; }
+
+/* 【Phase10】追加の演出用keyframes（仕様73章：正解／霧が晴れる／設計図欠片／
+   建築物完成／建築物拡張／称号獲得 などの体感を強める）。
+   JavaScript側は「状態を切り替えてクラスを付け外しするだけ」に徹し、
+   実際の動きの定義はすべてCSS側に閉じる。 */
+
+@keyframes pop-in {
+  0%   { transform: scale(0.85); opacity: 0; }
+  60%  { transform: scale(1.03); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.pop-in { animation: pop-in 0.35s ease-out; }
+
+@keyframes fog-fade-out {
+  from { opacity: var(--from-opacity, 0.7); }
+  to   { opacity: var(--to-opacity, 0); }
+}
+.fog-fade-out { animation: fog-fade-out 0.6s ease forwards; }
+
+@keyframes shine-sweep {
+  0%   { background-position: -150% 0; }
+  100% { background-position: 250% 0; }
+}
+.shine-sweep {
+  background-image: linear-gradient(100deg, transparent 40%, rgba(255,255,255,0.55) 50%, transparent 60%);
+  background-size: 250% 100%;
+  animation: shine-sweep 1.1s ease;
+}
+
+@keyframes slide-up-fade {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+.slide-up-fade { animation: slide-up-fade 0.3s ease-out; }
+
+@keyframes fragment-pop {
+  0%   { transform: scale(0.6) rotate(-6deg); opacity: 0; }
+  70%  { transform: scale(1.08) rotate(2deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+.fragment-pop { animation: fragment-pop 0.4s ease-out; }
+
+/* 【Phase10】仕様76章：アクセシビリティ（prefers-reduced-motionの尊重） */
+@media (prefers-reduced-motion: reduce) {
+  .pulse-once, .pop-in, .fog-fade-out, .shine-sweep, .slide-up-fade, .fragment-pop {
+    animation: none !important;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}

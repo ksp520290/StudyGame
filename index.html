@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>霧晴れの開拓譚</title>
+
+<link rel="stylesheet" href="css/variables.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/map.css">
+<link rel="stylesheet" href="css/quiz.css">
+<link rel="stylesheet" href="css/gacha.css">
+<link rel="stylesheet" href="css/journal.css">
+<link rel="stylesheet" href="css/title.css">
+<link rel="stylesheet" href="css/animation.css">
+<link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+
+<!-- アプリ全体のルート要素。router.jsがここに各画面を描画する -->
+<div id="app-root">
+
+  <!-- 画面表示エリア -->
+  <main id="screen-container" aria-live="polite"></main>
+
+  <!-- 共通ナビゲーション（待受画面では非表示） -->
+  <nav id="main-nav" class="main-nav hidden" aria-label="メインナビゲーション">
+    <button class="nav-btn" data-screen="home">
+      <span class="nav-icon">🏠</span><span class="nav-label">ホーム</span>
+    </button>
+    <button class="nav-btn" data-screen="explore">
+      <span class="nav-icon">🧭</span><span class="nav-label">探索</span>
+    </button>
+    <button class="nav-btn" data-screen="settings">
+      <span class="nav-icon">⚙️</span><span class="nav-label">設定</span>
+    </button>
+  </nav>
+
+  <!-- トースト通知（エラー・保存完了など） -->
+  <div id="toast-container" class="toast-container" aria-live="assertive"></div>
+
+  <!-- 動画演出用の全画面オーバーレイ（フォールバックあり） -->
+  <div id="video-overlay" class="video-overlay hidden">
+    <video id="cutscene-video" playsinline></video>
+    <div id="cutscene-fallback" class="cutscene-fallback hidden"></div>
+  </div>
+
+</div>
+
+<!-- テンプレート置き場：JSで複製して使用する -->
+<template id="tpl-toast">
+  <div class="toast">
+    <span class="toast-message"></span>
+  </div>
+</template>
+
+<!--
+  モジュール読み込み順序（依存関係に注意）：
+  1. utils / storage / gameState … 基盤（Phase1）
+  2. rewardSystem / questionSystem … 他に依存しない計算ロジック（Phase2-4）
+  3. importExport … gameStateに依存
+  4. router … 画面切り替えの土台。以降のモジュールがregisterScreenで自分の画面を登録する
+  5. quizSystem … 学習ロジック本体（Phase2）。QuizSystem.startLevel / isLevelLocked / levelLabel /
+     emptyStageProgress を地図画面（mapSystem）から再利用するため、mapSystemより先に読み込む。
+  6. fogSystem … 霧の不透明度計算（Phase5）。純粋関数のみで他モジュールに依存しない。
+  7. buildingSystem … 建築物の配置・改名・拡張ロジック（Phase6）。fogSystem/GameStateに依存。
+  8. characterSystem … キャラクター欠片・復元率・仲間の誘致（Phase7）。GameStateに依存。
+  9. titleSystem … 称号の判定・付与（Phase9）。GameState/CharacterSystemに依存。
+     resultSystem/reviewSystem/diarySystem/gachaSystemがcheckAndAward()を呼ぶため、
+     それらより先に読み込む。
+  10. mapSystem … 地図・霧・建築物の描画（Phase5/6）。fogStageSelect / areaMap 画面を登録する。
+     quizSystem.jsはもう「fogStageSelect」画面を登録しない（Phase5でmapSystemに置き換え済み）。
+     buildingSystemの関数を呼ぶため、buildingSystemより後に読み込む。
+  11. gachaSystem … ガチャ・キャラクター一覧画面（Phase7）。App/RewardSystem/CharacterSystem/
+      BuildingSystemに依存するため、それらより後に読み込む。
+  12. diarySystem / readingSystem … 日記・読書記録（Phase8）。RewardSystem/TitleSystemに依存
+      （TitleSystemは無くても動くようtypeof guardを入れてある）。
+  13. resultSystem / reviewSystem … 結果判定・復習（Phase2-3）。Phase9でTitleSystem連携を追加。
+  14. worldPhaseSystem … 熱狂段階／習慣段階の判定（Phase10）。router.jsのホーム画面から参照する。
+  15. app … エントリーポイント。必ず最後（ただしgachaSystemがApp.playCutsceneを呼ぶのは
+      ユーザー操作後なので、app.jsの読み込み順は他と入れ替わっても実害はない）
+-->
+<script src="js/utils.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/gameState.js"></script>
+<script src="js/assetManager.js"></script>
+<script src="js/rewardSystem.js"></script>
+<script src="js/questionSystem.js"></script>
+<script src="js/importExport.js"></script>
+<script src="js/csvManager.js"></script>
+<script src="js/router.js"></script>
+<script src="js/quizSystem.js"></script>
+<script src="js/fogSystem.js"></script>
+<script src="js/buildingSystem.js"></script>
+<script src="js/characterSystem.js"></script>
+<script src="js/titleSystem.js"></script>
+<script src="js/mapSystem.js"></script>
+<script src="js/gachaSystem.js"></script>
+<script src="js/diarySystem.js"></script>
+<script src="js/readingSystem.js"></script>
+<script src="js/resultSystem.js"></script>
+<script src="js/reviewSystem.js"></script>
+<script src="js/worldPhaseSystem.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

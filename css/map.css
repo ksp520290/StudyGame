@@ -1,0 +1,239 @@
+/* ================================
+   地図システム（未知の霧）Phase5実装
+   1000x1000 仮想座標・霧レイヤー・ズームパンのスタイル。
+================================ */
+
+/* --- エリア一覧画面（"fogStageSelect"） --- */
+.area-list-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--color-parchment);
+  color: var(--color-ink);
+  border: var(--border-double);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-3);
+  margin-bottom: var(--spacing-3);
+  cursor: pointer;
+  font-family: var(--font-body);
+}
+.area-list-card.has-bg-image {
+  background-size: cover;
+  background-position: center;
+  color: #fff;
+}
+.area-list-card.has-bg-image .area-list-title,
+.area-list-card.has-bg-image .progress-meta span { color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+.area-list-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  margin-bottom: 6px;
+}
+.area-list-badge {
+  margin-top: 6px;
+  font-size: var(--fs-xs);
+  color: var(--color-amber-dark);
+  font-weight: 600;
+}
+
+/* --- ステージ地図画面（"areaMap"） --- */
+.map-screen-inner {
+  padding: var(--spacing-2) 0 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* タブレット以上でも地図だけは画面幅いっぱいに使う（layout.cssの640px制限を解除） */
+@media (min-width: 768px) {
+  #screen-container .map-screen-inner {
+    max-width: none;
+  }
+}
+
+.map-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: 0 var(--spacing-3) var(--spacing-2);
+}
+.map-header h2 { margin: 0; }
+.map-header .icon-btn {
+  /* ボタンは従来通りの配色（--btn-*）を維持する */
+  background: var(--btn-secondary-bg);
+  border: none;
+  color: var(--btn-secondary-text);
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.area-map-container {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 420px;
+  overflow: hidden;
+  background: #0e1420;
+  touch-action: none; /* ブラウザ標準のスクロール/ズームと競合させない */
+}
+
+.map-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  transform-origin: center center;
+  transition: transform 0.05s linear;
+}
+
+.map-land-bg {
+  fill: #2f3b2a;
+}
+
+.map-path-line {
+  stroke: rgba(236, 223, 194, 0.35);
+  stroke-width: 4;
+  stroke-dasharray: 2 10;
+  stroke-linecap: round;
+}
+
+.map-stage-shape {
+  fill: var(--color-parchment);
+  stroke: var(--color-ink-soft);
+  stroke-width: 2;
+}
+.map-stage-shape-final {
+  fill: var(--color-gold);
+  stroke: var(--color-amber-dark);
+}
+
+.map-stage-fog {
+  fill: #0e1420;
+  stroke: none;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.map-stage-label {
+  font-family: var(--font-display);
+  font-size: 15px;
+  fill: var(--color-ink);
+  pointer-events: none;
+}
+
+.map-stage-group { cursor: pointer; }
+.map-stage-group:hover .map-stage-shape { stroke: var(--color-amber); stroke-width: 3; }
+
+/* ステージの位置を常に分かりやすくするための輪郭線（霧の不透明度に関わらず常に不透明度100%） */
+.map-stage-outline {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2.5;
+  opacity: 1;
+  pointer-events: none;
+}
+
+/* --- エリア画面（1000×1000・正方形ブロック。"fogStageSelect"） --- */
+.map-area-group { cursor: pointer; }
+.map-area-square {
+  fill: var(--color-parchment);
+  stroke: var(--color-parchment-dark);
+  stroke-width: 2;
+}
+.map-area-group:hover .map-area-square { stroke: var(--color-amber); stroke-width: 3; }
+.map-area-outline {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2;
+  opacity: 1;
+  pointer-events: none;
+}
+.map-area-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  fill: var(--color-ink);
+  pointer-events: none;
+}
+.map-area-percent {
+  font-size: 14px;
+  fill: var(--color-ink-soft);
+  pointer-events: none;
+}
+
+/* --- 建築物（Phase6） --- */
+.map-building-group { cursor: pointer; }
+.map-building-shape {
+  fill: var(--color-amber);
+  stroke: var(--color-amber-dark);
+  stroke-width: 1.5;
+}
+/* Lvが上がるほど色を金色寄りにして「育っている」ことを視覚化する */
+.map-building-lv2 { fill: #c98a4e; }
+.map-building-lv3 { fill: #cf9857; }
+.map-building-lv4 { fill: #d7a860; }
+.map-building-lv5 { fill: var(--color-gold); }
+.map-building-group:hover .map-building-shape { stroke: var(--color-parchment); stroke-width: 2.5; }
+.map-building-label {
+  font-size: 16px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+/* --- 建物配置スロット選択 --- */
+.building-slot-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-2);
+  margin: var(--spacing-2) 0;
+}
+.building-popup-meta {
+  margin: var(--spacing-2) 0;
+}
+
+/* エリア全体の霧（未解放なほど濃い。奥の地形をうっすら透かして新奇性を演出する） */
+.area-fog-overlay {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 45%, rgba(20,26,40,0.35) 0%, rgba(10,14,22,0.92) 75%);
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.map-controls {
+  position: absolute;
+  right: var(--spacing-3);
+  bottom: var(--spacing-3);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 5;
+}
+.map-control-btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: var(--fs-lg);
+  border-radius: 50%;
+}
+
+/* --- ステージクリック時のレベル選択ポップアップ --- */
+.map-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 800;
+}
+.map-popup-panel {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 0 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+@media (min-width: 480px) {
+  .map-popup-overlay { align-items: center; }
+  .map-popup-panel { border-radius: var(--radius-md); margin-bottom: 0; }
+}
