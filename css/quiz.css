@@ -58,17 +58,58 @@
 }
 
 .char-chip {
-  width: 40px;
+  min-width: 40px;
   height: 40px;
+  padding: 0 var(--spacing-2);
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-ink-soft);
   background: #fff;
   font-family: var(--font-display);
   font-size: var(--fs-md);
   cursor: pointer;
+  white-space: nowrap;
 }
 
-.result-screen { display: flex; flex-direction: column; gap: var(--spacing-3); }
+/* 【追加要望対応】解答欄内のチップ（タップで取り消し可能） */
+.char-chip-picked {
+  background: rgba(212, 165, 90, 0.18);
+  border-color: var(--color-amber-dark);
+}
+
+/* 【追加要望対応】プール内で使用済みになったスロット（詰めずに空けたままにする） */
+.char-chip-empty {
+  min-width: 40px;
+  height: 40px;
+  border: 1px dashed transparent;
+  background: transparent;
+  cursor: default;
+}
+
+/* 【追加要望対応】縦画面：並び替えカードが小さく押しにくいため、縦横比(正方形)を保ったまま
+   1行に最大5個まで並ぶ大きさへ拡大する（それ以上は自動的に次の行へ折り返す）。
+   横画面は今までどおりの小さめのシステムを流用する（上のベース定義のまま変更しない）。 */
+@media (orientation: portrait) {
+  .reorder-pool {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+  }
+  .char-chip, .char-chip-empty {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+    word-break: break-all;
+    line-height: 1.15;
+    font-size: clamp(0.95rem, 4.2vw, 1.4rem);
+    padding: 4px;
+  }
+}
 .result-success-title { color: var(--color-gold); font-size: var(--fs-2xl); text-align: center; }
 .result-fail-title { color: var(--color-ink); text-align: center; }
 

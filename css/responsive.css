@@ -78,7 +78,68 @@ input:focus, textarea:focus, select:focus {
   outline-offset: 1px;
 }
 
-/* スクリーンリーダー専用テキスト（視覚的には隠すが読み上げには含める） */
+/* ================================
+   【追加要望対応】横長（ランドスケープ）画面用UI
+   縦長画面のスタイルは一切変更せず、orientation:landscapeのときだけ上書きする。
+================================ */
+@media (orientation: landscape) {
+  /* ホーム・探索・設定と共通のナビゲーションを下部から右側の縦ツールバーへ */
+  #app-root {
+    flex-direction: row;
+  }
+  .main-nav {
+    flex: 0 0 76px;
+    order: 2;
+    flex-direction: column;
+    justify-content: center;
+    gap: clamp(20px, 6vh, 64px);
+    border-top: none;
+    border-left: var(--border-thin);
+    padding: var(--spacing-3) 0;
+    height: 100%;
+  }
+  .main-nav.hidden { display: none; }
+  #screen-container { order: 1; }
+
+  /* ホーム画面：「今日のおすすめ行動」と「自分の世界の様子」を横並びに */
+  .home-panels-row {
+    flex-direction: row;
+    align-items: stretch;
+    gap: var(--spacing-3);
+  }
+  .home-panels-row > .recommend-box {
+    flex: 1 1 50%;
+    margin-bottom: 0;
+  }
+  .home-panels-row > .panel {
+    flex: 1 1 50%;
+  }
+
+  /* 探索画面：4つのボタンはレイアウトそのままにサイズだけ大きくする */
+  .explore-list {
+    padding: var(--spacing-3) 0;
+  }
+  .explore-list .explore-btn {
+    max-width: 520px;
+    padding: calc(var(--spacing-4) * 1.4);
+    font-size: var(--fs-xl);
+  }
+  .explore-list .explore-btn .explore-desc {
+    font-size: var(--fs-sm);
+  }
+
+  /* 設定画面：中央寄せ・画面幅の50% */
+  .settings-screen-inner {
+    max-width: 50vw;
+    margin: 0 auto;
+  }
+}
+
+/* タブレット・PC幅の上書き（min-width基準）は横長スマホより優先させたいため、
+   orientation:landscape より後に置いて、幅が十分にある場合はこちらを優先させる。 */
+@media (orientation: landscape) and (min-width: 1000px) {
+  .explore-list .explore-btn { max-width: 600px; }
+}
 .sr-only {
   position: absolute;
   width: 1px; height: 1px;

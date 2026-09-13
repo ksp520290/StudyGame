@@ -115,6 +115,12 @@
   transition: opacity 0.4s ease;
 }
 
+/* 【追加要望対応】ステージ霧を画像（denceFog/lightFog/fogYellow.png）で表示する場合のスタイル */
+.map-stage-fog-image {
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
 .map-stage-label {
   font-family: var(--font-display);
   font-size: 15px;
