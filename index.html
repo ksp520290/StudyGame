@@ -2,107 +2,316 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
-<title>霧晴れの開拓譚</title>
-
-<link rel="stylesheet" href="css/variables.css">
-<link rel="stylesheet" href="css/layout.css">
-<link rel="stylesheet" href="css/style.css">
-<link rel="stylesheet" href="css/map.css">
-<link rel="stylesheet" href="css/quiz.css">
-<link rel="stylesheet" href="css/gacha.css">
-<link rel="stylesheet" href="css/journal.css">
-<link rel="stylesheet" href="css/title.css">
-<link rel="stylesheet" href="css/animation.css">
-<link rel="stylesheet" href="css/responsive.css">
-<link rel="icon" href="assets/img/icon.jpg" type="image/jpg">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>舞台演出プランナー</title>
+<link rel="stylesheet" href="style.css">    
+<link rel="icon" href="./img/icon.ico">
 </head>
-<body>
+<body class="light-mode">
 
-<!-- アプリ全体のルート要素。router.jsがここに各画面を描画する -->
-<div id="app-root">
+<!-- ==================== 初期選択モーダル ==================== -->
+<div id="initModal" class="modal-overlay">
+  <div class="modal-box">
+    <h2>初期設定を選択してください</h2>
 
-  <!-- 画面表示エリア -->
-  <main id="screen-container" aria-live="polite"></main>
+    <div class="modal-section" id="section-bg-toggle">
+      <p class="modal-question">設定1：背景色あり / 背景色なし</p>
+      <div class="choice-row">
+        <button class="choice-btn" data-group="bgColor" data-value="on">
+          <img data-asset-path="img/choice_background0.jpg" alt="背景色あり" class="choice-img" onerror="this.style.background='#5AA4DE';this.removeAttribute('src')">
+          <span class="choice-label">背景色あり</span>
+        </button>
+        <button class="choice-btn" data-group="bgColor" data-value="off">
+          <img data-asset-path="img/choice_backgroundX.jpg" alt="背景色なし" class="choice-img" onerror="this.style.background='#888';this.removeAttribute('src')">
+          <span class="choice-label">背景色なし</span>
+        </button>
+      </div>
+    </div>
 
-  <!-- 共通ナビゲーション（待受画面では非表示） -->
-  <nav id="main-nav" class="main-nav hidden" aria-label="メインナビゲーション">
-    <button class="nav-btn" data-screen="home">
-      <span class="nav-icon">🏠</span><span class="nav-label">ホーム</span>
-    </button>
-    <button class="nav-btn" data-screen="explore">
-      <span class="nav-icon">🧭</span><span class="nav-label">探索</span>
-    </button>
-    <button class="nav-btn" data-screen="settings">
-      <span class="nav-icon">⚙️</span><span class="nav-label">設定</span>
-    </button>
-  </nav>
+    <div class="modal-section" id="section-effect-toggle" style="display:none;">
+      <p class="modal-question">設定2：2色以上の高速切り替え（Effect）</p>
+      <div class="choice-row">
+        <button class="choice-btn simple" data-group="effectOnOff" data-value="on">あり</button>
+        <button class="choice-btn simple" data-group="effectOnOff" data-value="off">なし</button>
+      </div>
+    </div>
 
-  <!-- トースト通知（エラー・保存完了など） -->
-  <div id="toast-container" class="toast-container" aria-live="assertive"></div>
+    <div class="modal-section" id="section-effect-kind" style="display:none;">
+      <p class="modal-question">Effectの種類選択</p>
+      <div class="choice-row">
+        <button class="choice-btn simple" data-group="effectKind" data-value="existing">既存Effect</button>
+        <button class="choice-btn simple" data-group="effectKind" data-value="original">独自Effect</button>
+      </div>
+    </div>
 
-  <!-- 動画演出用の全画面オーバーレイ（フォールバックあり） -->
-  <div id="video-overlay" class="video-overlay hidden">
-    <video id="cutscene-video" playsinline></video>
-    <div id="cutscene-fallback" class="cutscene-fallback hidden"></div>
+    <button id="startAppBtn" class="primary-btn" disabled>この設定で開始</button>
   </div>
-
 </div>
 
-<!-- テンプレート置き場：JSで複製して使用する -->
-<template id="tpl-toast">
-  <div class="toast">
-    <span class="toast-message"></span>
+<!-- ==================== ログインモーダル ==================== -->
+<div id="loginModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h3>ログイン</h3>
+    <input type="text" id="loginIdInput" placeholder="ID" autocomplete="username" style="width:100%;padding:8px;margin:8px 0;">
+    <input type="password" id="loginPasswordInput" placeholder="パスワード" autocomplete="current-password" style="width:100%;padding:8px;margin:8px 0;">
+    <button id="loginSubmitBtn" class="primary-btn">ログイン</button>
+    <button id="loginCancelBtn" style="width:100%;margin-top:8px;">キャンセル</button>
   </div>
-</template>
+</div>
 
-<!--
-  モジュール読み込み順序（依存関係に注意）：
-  1. utils / storage / gameState … 基盤（Phase1）
-  2. rewardSystem / questionSystem … 他に依存しない計算ロジック（Phase2-4）
-  3. importExport … gameStateに依存
-  4. router … 画面切り替えの土台。以降のモジュールがregisterScreenで自分の画面を登録する
-  5. quizSystem … 学習ロジック本体（Phase2）。QuizSystem.startLevel / isLevelLocked / levelLabel /
-     emptyStageProgress を地図画面（mapSystem）から再利用するため、mapSystemより先に読み込む。
-  6. fogSystem … 霧の不透明度計算（Phase5）。純粋関数のみで他モジュールに依存しない。
-  7. buildingSystem … 建築物の配置・改名・拡張ロジック（Phase6）。fogSystem/GameStateに依存。
-  8. characterSystem … キャラクター欠片・復元率・仲間の誘致（Phase7）。GameStateに依存。
-  9. titleSystem … 称号の判定・付与（Phase9）。GameState/CharacterSystemに依存。
-     resultSystem/reviewSystem/diarySystem/gachaSystemがcheckAndAward()を呼ぶため、
-     それらより先に読み込む。
-  10. mapSystem … 地図・霧・建築物の描画（Phase5/6）。fogStageSelect / areaMap 画面を登録する。
-     quizSystem.jsはもう「fogStageSelect」画面を登録しない（Phase5でmapSystemに置き換え済み）。
-     buildingSystemの関数を呼ぶため、buildingSystemより後に読み込む。
-  11. gachaSystem … ガチャ・キャラクター一覧画面（Phase7）。App/RewardSystem/CharacterSystem/
-      BuildingSystemに依存するため、それらより後に読み込む。
-  12. diarySystem / readingSystem … 日記・読書記録（Phase8）。RewardSystem/TitleSystemに依存
-      （TitleSystemは無くても動くようtypeof guardを入れてある）。
-  13. resultSystem / reviewSystem … 結果判定・復習（Phase2-3）。Phase9でTitleSystem連携を追加。
-  14. worldPhaseSystem … 熱狂段階／習慣段階の判定（Phase10）。router.jsのホーム画面から参照する。
-  15. app … エントリーポイント。必ず最後（ただしgachaSystemがApp.playCutsceneを呼ぶのは
-      ユーザー操作後なので、app.jsの読み込み順は他と入れ替わっても実害はない）
--->
-<script src="js/utils.js"></script>
-<script src="js/storage.js"></script>
-<script src="js/gameState.js"></script>
-<script src="js/assetManager.js"></script>
-<script src="js/rewardSystem.js"></script>
-<script src="js/questionSystem.js"></script>
-<script src="js/importExport.js"></script>
-<script src="js/csvManager.js"></script>
-<script src="js/router.js"></script>
-<script src="js/quizSystem.js"></script>
-<script src="js/fogSystem.js"></script>
-<script src="js/buildingSystem.js"></script>
-<script src="js/characterSystem.js"></script>
-<script src="js/titleSystem.js"></script>
-<script src="js/mapSystem.js"></script>
-<script src="js/gachaSystem.js"></script>
-<script src="js/diarySystem.js"></script>
-<script src="js/readingSystem.js"></script>
-<script src="js/resultSystem.js"></script>
-<script src="js/reviewSystem.js"></script>
-<script src="js/worldPhaseSystem.js"></script>
-<script src="js/app.js"></script>
+<!-- ==================== Googleログインモーダル ==================== -->
+<div id="googleLoginModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h3>Googleログイン</h3>
+    <p class="hint">学校の都合上Google Cloud Consoleを使用できないため、OAuthクライアントIDを使った自動ログインの代わりに、Google OAuth 2.0 Playground（<a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener">developers.google.com/oauthplayground</a>）などで取得したアクセストークンをご自身で貼り付ける方式にしています。Playground左側でスコープ「Drive API v3」の「drive.readonly」と「Google Docs API」の「documents.readonly」を選択して認証し、発行された「Access token」をコピーして下に貼り付けてください。</p>
+    <div id="googleLoginInputArea">
+      <input type="text" id="googleTokenInput" placeholder="アクセストークンを貼り付け" style="width:100%;padding:8px;margin:8px 0;">
+      <button id="googleTokenApplyBtn" class="primary-btn">この情報でログイン</button>
+    </div>
+    <div id="googleLoginStatusArea" class="hidden">
+      <p class="hint" id="googleLoginStatus">Googleアカウント：未ログイン</p>
+      <button id="googleLogoutBtn" class="choice-btn simple">Googleからログアウト</button>
+    </div>
+    <button id="googleLoginCloseBtn" style="width:100%;margin-top:8px;">閉じる</button>
+  </div>
+</div>
+
+<!-- ==================== 管理者画面モーダル ==================== -->
+<div id="adminModal" class="modal-overlay hidden">
+  <div class="modal-box admin-box">
+    <h3>アセット管理：ボタン画像／動画アップロード</h3>
+    <p class="hint">アップロードしたファイルはブラウザ内に自動保存され、各ボタン・ステージ表示に即時反映されます（実ファイルはGitHub連携保存時にimg／movフォルダへコミットされます）。初期選択ボタン画像・背景色なし用デフォルト画像はimg フォルダ内の固定ファイル（choice_background0.jpg／choice_backgroundX.jpg／anten.jpg／zensyou.jpg／hansyou.jpg）を直接参照するため、ここからのアップロードはできません。</p>
+
+    <h4>背景色あり用 個別アセット（舞台・ストロボ・色）</h4>
+    <div class="admin-dynamic-row">
+      <select id="adminAssetKind"><option value="img">画像(img)</option><option value="mov">動画(mov)</option></select>
+      <select id="adminAssetStage"><option value="暗転">暗転</option><option value="全照">全照</option><option value="半照">半照</option></select>
+      <select id="adminAssetStrobe">
+        <option value="ストロボ✖">ストロボ✖</option>
+        <option value="ストロボ静止">ストロボ静止</option>
+        <option value="ストロボ独立">ストロボ独立</option>
+        <option value="ストロボくるくる">ストロボくるくる</option>
+      </select>
+      <select id="adminAssetColor"></select>
+      <label class="file-btn">ファイル選択<input type="file" id="adminAssetFile" accept="image/*,video/*" hidden></label>
+      <span id="adminAssetPathPreview" class="hint"></span>
+    </div>
+
+    <button id="adminCloseBtn" class="primary-btn">閉じる</button>
+  </div>
+</div>
+
+<!-- ==================== 管理者一覧画面モーダル ==================== -->
+<div id="adminUsersModal" class="modal-overlay hidden">
+  <div class="modal-box admin-box">
+    <h3>管理者画面</h3>
+    <p class="hint">ログインに使用できるID・パスワードの一覧です。自分がログインに使用したID以外のパスワードは閲覧できません。編集・削除も自分の分のみ可能です。</p>
+    <table class="cue-table" id="adminUsersTable">
+      <thead><tr><th>ID</th><th>パスワード</th><th></th></tr></thead>
+      <tbody id="adminUsersTableBody"></tbody>
+    </table>
+    <div class="admin-users-add-row">
+      <input type="text" id="newAdminIdInput" placeholder="新規ID">
+      <input type="text" id="newAdminPassInput" placeholder="パスワード">
+      <button id="newAdminAddBtn">追加</button>
+    </div>
+    <button id="adminUsersCloseBtn" class="primary-btn">閉じる</button>
+  </div>
+</div>
+
+<!-- ==================== フェード秒数モーダル ==================== -->
+<div id="fadeSecModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h3>フェード秒数の設定</h3>
+    <p class="hint">画像／背景が切り替わる際のフェード時間（秒）です。</p>
+    <input type="number" id="fadeSecInput" min="0" step="0.1" style="width:100%;padding:8px;margin:8px 0;">
+    <button id="fadeSecSaveBtn" class="primary-btn">保存</button>
+    <button id="fadeSecCancelBtn" style="width:100%;margin-top:8px;">キャンセル</button>
+  </div>
+</div>
+
+<!-- ==================== ヘッダー ==================== -->
+<header id="mainHeader">
+  <div class="header-left">
+    <h1>🎭 舞台演出プランナー</h1>
+    <span id="versionMemoDisplay" class="version-memo-display"></span>
+  </div>
+  <div class="header-center">
+    <div id="stopwatchDisplay" class="stopwatch">00:00.0</div>
+    <button id="swStartBtn">開始</button>
+    <button id="swStopBtn">停止</button>
+    <button id="swResetBtn">リセット</button>
+  </div>
+  <div class="header-right">
+    <button id="darkModeToggle" title="ダーク/ライト切替">🌙</button>
+    <span id="publicToolsGroup" class="inline-group">
+      <button id="exportJsonBtn">JSON出力</button>
+      <label class="file-btn">JSON読込<input type="file" id="importJsonInput" accept=".json" hidden></label>
+      <button id="reopenInitBtn">初期設定</button>
+    </span>
+    <span id="initGatedGroup" class="hidden inline-group">
+      <button id="printBtn">印刷/PDF</button>
+    </span>
+    <div class="login-area">
+      <button id="loginBtn">ログイン</button>
+      <button id="settingsMenuBtn" class="hidden">⚙ 設定</button>
+      <div id="settingsMenu" class="settings-menu hidden">
+        <button id="exportCsvBtn">CSV出力</button>
+        <button id="lockModeToggle">🔓 練習モード</button>
+        <button id="fadeSecBtn">フェード秒数</button>
+        <button id="openGoogleLoginBtn">Googleログイン</button>
+        <button id="openAdminBtn">アセット管理</button>
+        <button id="openAdminUsersBtn">管理者画面</button>
+        <button id="logoutBtn">ログアウト</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div id="versionMemoBar">
+  <input type="text" id="versionMemoInput" placeholder="例）10月5日 リハーサル版 変更履歴メモ">
+  <button id="versionMemoAddBtn">履歴に追加</button>
+  <button id="versionMemoListToggleBtn">履歴一覧</button>
+  <ul id="versionMemoList" class="hidden"></ul>
+</div>
+
+<!-- ==================== メインレイアウト ==================== -->
+<main id="mainLayout">
+
+  <!-- 登場人物パネル -->
+  <aside id="castPanel" class="cast-panel closed">
+    <div class="cast-panel-header" id="castPanelToggle">
+      <span>👥 配役</span>
+      <span id="castPanelArrow">▶</span>
+    </div>
+    <div class="cast-panel-body" id="castPanelBody">
+      <div id="castList"></div>
+      <div class="cast-add-row">
+        <input type="text" id="newCharName" placeholder="登場人物名">
+        <input type="text" id="newActorName" placeholder="役者名">
+        <button id="castAddBtn">保存</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 上/左：台本・動画・Cue・独自Effectエリア -->
+  <section id="scriptArea" class="content-area">
+    <div class="tab-row">
+      <button class="tab-btn active" data-tab="script">台本</button>
+      <button class="tab-btn" data-tab="video">動画</button>
+      <button class="tab-btn" data-tab="cue">Cue</button>
+      <button class="tab-btn hidden" data-tab="customfx" id="customfxTabBtn">独自Effect</button>
+    </div>
+
+    <div id="tab-script" class="tab-pane active">
+      <div class="script-toolbar sticky-toolbar">
+        <div class="toolbar-row">
+          <button id="scriptCueBtn" class="cue-record-btn">📍 Cue記録</button>
+          <button id="rubyBtn">ルビ付与</button>
+          <button id="tokakiBtn">ト書き行にする</button>
+          <button id="autoMatchBtn">話者自動マッチング</button>
+          <button id="speakRowBtn">🔊 読み上げ</button>
+        </div>
+        <div class="toolbar-row">
+          <label class="file-btn">音源読込<input type="file" id="scriptAudioInput" accept="audio/*" hidden></label>
+          <button id="scriptAudioPlayPause">▶</button>
+          <input type="range" id="scriptAudioSeek" min="0" max="100" value="0" step="0.1">
+          <span id="scriptAudioTime">0.0 / 0.0秒</span>
+          <audio id="scriptAudioPlayer" hidden></audio>
+        </div>
+        <div class="toolbar-row gdoc-row">
+          <input type="text" id="gdocUrlInput" placeholder="GoogleドキュメントのURLを貼り付けて自動同期(Web公開設定にしてください)">
+          <button id="gdocSyncBtn">同期</button>
+          <span id="gdocStatus" class="hint"></span>
+        </div>
+      </div>
+      <div id="scriptEditor" contenteditable="true" class="script-editor"></div>
+      <p class="hint">※ セリフ冒頭「話者名：」形式で自動マッチング。複数話者は「うさぎ、かめ：」「うさぎ・かめ：」「うさぎ/かめ：」のように区切ってください。</p>
+
+      <h3 class="cue-mirror-title">Cue一覧</h3>
+      <table class="cue-table">
+        <thead><tr><th>秒数</th><th>セリフ</th><th>音源</th><th>舞台</th><th>背景</th><th>Effect</th><th>ストロボ</th><th>フェード</th><th>反映</th><th></th></tr></thead>
+        <tbody id="cueTableBody_script"></tbody>
+      </table>
+    </div>
+
+    <div id="tab-video" class="tab-pane">
+      <button id="videoCueBtn" class="cue-record-btn">📍 Cue記録</button>
+      <label class="file-btn">動画ファイル選択<input type="file" id="videoInput" accept="video/*" hidden></label>
+      <video id="rehearsalVideo" controls></video>
+      <div class="cue-capture-row">
+        <span id="currentVideoTime">0.0秒</span>
+      </div>
+      <table class="cue-table">
+        <thead><tr><th>秒数</th><th>セリフ</th><th>音源</th><th>舞台</th><th>背景</th><th>Effect</th><th>ストロボ</th><th>フェード</th><th>反映</th><th></th></tr></thead>
+        <tbody id="cueTableBody_video"></tbody>
+      </table>
+    </div>
+
+    <div id="tab-cue" class="tab-pane">
+      <div class="cue-capture-row">
+        <button id="cueTabAddBtn" class="cue-record-btn">📍 Cue記録</button>
+      </div>
+      <table class="cue-table">
+        <thead><tr><th>秒数</th><th>セリフ</th><th>音源</th><th>舞台</th><th>背景</th><th>Effect</th><th>ストロボ</th><th>フェード</th><th>反映</th><th></th></tr></thead>
+        <tbody id="cueTableBody_cue"></tbody>
+      </table>
+    </div>
+
+    <div id="tab-customfx" class="tab-pane">
+      <button id="customfxCueBtn" class="cue-record-btn">📍 Cue記録</button>
+      <p class="hint">高速切り替えが「独自Effect」の場合に、ステージ画面の保存操作で追加された独自Effectの記録一覧です。</p>
+      <table class="cue-table">
+        <thead><tr><th>No.</th><th>ステップ</th><th>秒数</th><th>背景色</th><th>ストロボ</th><th>反映</th><th></th></tr></thead>
+        <tbody id="customFxTableBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 下/右：照明・ステージプレビュー -->
+  <section id="stageArea" class="content-area">
+    <div class="stage-controls">
+      <button class="stage-btn" data-stage="anten">暗転</button>
+      <button class="stage-btn" data-stage="zensyou">全照</button>
+      <button class="stage-btn" data-stage="hansyou">50%</button>
+    </div>
+
+    <div id="stagePreview" class="stage-preview">
+      <img id="stageBgImg" src="" alt="" class="stage-bg-img">
+      <video id="stageBgVideo" class="stage-bg-img hidden" muted loop playsinline autoplay></video>
+      <div id="stageColorFilter" class="stage-color-filter"></div>
+      <div id="stageItemsLayer"></div>
+    </div>
+
+    <div class="stage-color-section" id="stageColorSection">
+      <button id="strobeToggleBtn" class="side-btn strobe-btn"></button>
+      <div class="color-toggle-row" id="stageColorToggles"></div>
+      <div class="side-btn-group">
+        <button id="effectToggleBtn" class="side-btn effect-btn hidden"></button>
+        <button id="fadeModeBtn" class="side-btn fade-btn">フェードなし</button>
+      </div>
+    </div>
+
+    <div class="custom-effect-row hidden" id="customEffectAddRow">
+      <label>No.<input type="number" id="cfxNo" min="1" step="1" style="width:60px;"></label>
+      <label>ステップ<input type="number" id="cfxStep" min="1" step="1" style="width:60px;"></label>
+      <label>秒数<input type="number" id="cfxSec" min="0" step="0.1" style="width:70px;"></label>
+      <button id="cfxSaveBtn">保存</button>
+    </div>
+
+    <div class="stage-item-add">
+      <label class="file-btn">配置アイテム画像追加<input type="file" id="stageItemInput" accept="image/*" hidden></label>
+      <button id="stageVideoDirectBtn" class="file-btn">ステージ動画を直接指定</button>
+      <input type="file" id="stageVideoInput" accept="video/*" hidden>
+    </div>
+  </section>
+
+</main>
+
+<footer id="printFooter">
+  <div class="print-area-wrapper" id="printArea"></div>
+</footer>
+
+<script src="script.js"></script>
 </body>
 </html>
