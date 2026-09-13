@@ -27,6 +27,18 @@ const ReadingSystem = (() => {
   const CHAPTER_SUMMARY_TARGET = 30;
   const BOOK_SUMMARY_TARGET = 150;
 
+  /**
+   * 【追加要望対応】読書記録の「章ごとの要約」「抽象」「抽象⇄具体」「批判的読書テンプレート」を
+   * アコーディオン（開閉式、<details>）表示にするための共通ヘルパー。
+   * router.js内のsettingsAccordion()と同じ見た目（css/style.css .settings-accordion）を再利用する。
+   */
+  function readingAccordion(title, children, opts = {}) {
+    const summary = Utils.el("summary", {}, title);
+    const details = Utils.el("details", { class: "settings-accordion" }, [summary, ...children]);
+    if (opts.open) details.setAttribute("open", "");
+    return details;
+  }
+
   function getAll() {
     return GameState.getState().books || [];
   }
@@ -249,27 +261,17 @@ const ReadingSystem = (() => {
     basicPanel.appendChild(tagInput);
     basicPanel.appendChild(rereadLabel);
 
-    const summaryInput = Utils.el("textarea", { class: "review-textarea", placeholder: `本の要約（目安${BOOK_SUMMARY_TARGET}文字）` });
-    summaryInput.value = book.bookSummary;
-    const summaryCounter = Utils.el("div", { class: "char-counter" }, `${book.bookSummary.length} / ${BOOK_SUMMARY_TARGET}（目安）`);
-    summaryInput.addEventListener("input", () => { summaryCounter.textContent = `${summaryInput.value.length} / ${BOOK_SUMMARY_TARGET}（目安）`; });
-    summaryInput.addEventListener("change", () => updateBook(bookId, { bookSummary: summaryInput.value }));
-    basicPanel.appendChild(Utils.el("label", { class: "diary-field-label" }, "本の要約"));
-    basicPanel.appendChild(summaryInput);
-    basicPanel.appendChild(summaryCounter);
     wrap.appendChild(basicPanel);
-
-    // --- 章 ---
-    wrap.appendChild(renderChaptersSection(book));
 
     // --- 引用 ---
     wrap.appendChild(renderQuotesSection(book));
 
-    // --- 抽象⇄具体 ---
-    wrap.appendChild(renderLadderSection(book));
-
-    // --- 批判的読書 ---
-    wrap.appendChild(renderCriticalSection(book));
+    // 【追加要望対応】「章ごとの要約」「抽象」「抽象⇄具体」「批判的読書テンプレート」を
+    // アコーディオン（開閉式）表示にした。既存の各render関数はそのままパネル中身として使う。
+    wrap.appendChild(readingAccordion("章ごとの要約", [renderChaptersSection(book)]));
+    wrap.appendChild(readingAccordion("抽象", [renderAbstractSummarySection(book)]));
+    wrap.appendChild(readingAccordion("抽象⇄具体", [renderLadderSection(book)]));
+    wrap.appendChild(readingAccordion("批判的読書テンプレート", [renderCriticalSection(book)]));
 
     wrap.appendChild(Utils.el("button", {
       class: "btn btn-secondary btn-block",
@@ -285,8 +287,21 @@ const ReadingSystem = (() => {
 
     root.appendChild(wrap);
 
+    function renderAbstractSummarySection(b) {
+      const panel = Utils.el("div", { class: "panel" });
+      const summaryInput = Utils.el("textarea", { class: "review-textarea", placeholder: `本の要約（目安${BOOK_SUMMARY_TARGET}文字）` });
+      summaryInput.value = b.bookSummary;
+      const summaryCounter = Utils.el("div", { class: "char-counter" }, `${b.bookSummary.length} / ${BOOK_SUMMARY_TARGET}（目安）`);
+      summaryInput.addEventListener("input", () => { summaryCounter.textContent = `${summaryInput.value.length} / ${BOOK_SUMMARY_TARGET}（目安）`; });
+      summaryInput.addEventListener("change", () => updateBook(bookId, { bookSummary: summaryInput.value }));
+      panel.appendChild(Utils.el("label", { class: "diary-field-label" }, "本の要約"));
+      panel.appendChild(summaryInput);
+      panel.appendChild(summaryCounter);
+      return panel;
+    }
+
     function renderChaptersSection(b) {
-      const panel = Utils.el("div", { class: "panel" }, [Utils.el("h3", {}, "章ごとの要約")]);
+      const panel = Utils.el("div", { class: "panel" });
       b.chapters.forEach((c) => {
         const row = Utils.el("div", { class: "chapter-row" });
         row.appendChild(Utils.el("div", { class: "diary-field-label" }, c.name));
@@ -330,7 +345,6 @@ const ReadingSystem = (() => {
 
     function renderLadderSection(b) {
       const panel = Utils.el("div", { class: "panel" }, [
-        Utils.el("h3", {}, "抽象⇄具体"),
         Utils.el("p", {}, "抽象的な考えと、その具体例を交互に並べて思考を広げます。"),
       ]);
       const chain = Utils.el("div", { class: "ladder-chain" });
@@ -357,9 +371,7 @@ const ReadingSystem = (() => {
     }
 
     function renderCriticalSection(b) {
-      const panel = Utils.el("div", { class: "panel" }, [
-        Utils.el("h3", {}, "批判的読書テンプレート"),
-      ]);
+      const panel = Utils.el("div", { class: "panel" });
       b.criticalQuestions.forEach((q) => {
         const row = Utils.el("div", { class: "critical-question-row" });
         row.appendChild(Utils.el("div", { class: "diary-field-label" }, q.question));

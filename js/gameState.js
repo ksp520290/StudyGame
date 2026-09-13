@@ -109,6 +109,10 @@ const GameState = (() => {
       diary: [],
       // readingSystem.js が管理。1件 = 1冊の読書記録（仕様62章）。
       books: [],
+      // 【追加要望対応】dictationSystem.js が管理。外国語音読用ディクテーション教材。
+      // 1件 = { id, title, sentences:[{id,text,audio:{fileId,start,end}|null}],
+      //   audioFiles:[{id,name,dataUrl}], createdAt, updatedAt }
+      dictationSets: [],
 
       // --- Phase9：称号 ---
       // 獲得済み称号。1件 = { id, defId, label, genreId(null可), source:"builtin"|"custom", earnedAt }
@@ -116,6 +120,16 @@ const GameState = (() => {
       // ユーザーが設定画面から追加した「独自称号」の条件定義（仕様64章：称号追加・称号条件設定）。
       // titleSystem.js の CUSTOM_CONDITION_TYPES を参照。
       titleDefs: [],
+
+      // --- 【追加要望対応】☆フォルダ（3回以上間違えた問題の翌日再出題） ---
+      // questionMistakes：問題IDごとの累計誤答回数（quizSystem.js / reviewSystem.jsの
+      //   タイピング復習で誤答するたびに+1する。星問題として出題され正答すると0にリセット）。
+      questionMistakes: {},
+      // starQuestions：☆フォルダの1件 = { id, questionId, genreId, stageId, format,
+      //   scheduledDate, status:"pending"|"done" }
+      //   format："lv1"|"lv2"|"lv3"（新規学習中の誤答時） または "typing"（復習の
+      //   タイピング復習中の誤答時）。翌日、同じformatで単問再出題するために使う。
+      starQuestions: [],
     };
   }
 
@@ -168,7 +182,9 @@ const GameState = (() => {
       characterDefs: [], characters: [],
       buildingDefs: [],
       diary: [], books: [],
+      dictationSets: [],
       titles: [], titleDefs: [],
+      questionMistakes: {}, starQuestions: [],
     };
     for (const [key, value] of Object.entries(defaults)) {
       if (!(key in state)) state[key] = value;
@@ -264,6 +280,39 @@ const GameState = (() => {
     return null;
   }
 
+  /**
+   * 【追加要望対応】☆フォルダ機能：問題ID単位の誤答回数を+1する。
+   * 累計3回に達した瞬間（3回目のみ）、翌日出題の☆フォルダへ登録する。
+   * 既にその問題が☆フォルダに pending で入っている場合は重複登録しない。
+   * @param {string} questionId
+   * @param {string} genreId
+   * @param {string} stageId
+   * @param {"lv1"|"lv2"|"lv3"|"typing"} format 誤答時に出題されていた形式（翌日、同じ形式で再出題するため）
+   * @returns {boolean} 今回の誤答で新たに☆フォルダへ入ったかどうか
+   */
+  function recordQuestionMistake(questionId, genreId, stageId, format) {
+    let addedToStar = false;
+    update((s) => {
+      if (!s.questionMistakes) s.questionMistakes = {};
+      const count = (s.questionMistakes[questionId] || 0) + 1;
+      s.questionMistakes[questionId] = count;
+
+      if (!s.starQuestions) s.starQuestions = [];
+      const alreadyPending = s.starQuestions.some((e) => e.questionId === questionId && e.status === "pending");
+
+      if (count >= 3 && !alreadyPending) {
+        s.starQuestions.push({
+          id: Utils.generateId("star"),
+          questionId, genreId, stageId, format,
+          scheduledDate: Utils.addDays(Utils.todayStr(), 1),
+          status: "pending",
+        });
+        addedToStar = true;
+      }
+    });
+    return addedToStar;
+  }
+
   function getLevel() {
     return state.user.loginDates.length;
   }
@@ -276,5 +325,6 @@ const GameState = (() => {
     getLevel,
     findStageContext,
     findQuestionById,
+    recordQuestionMistake,
   };
 })();

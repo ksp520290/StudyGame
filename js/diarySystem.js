@@ -127,6 +127,10 @@ const DiarySystem = (() => {
         "読書記録をつける",
         Utils.el("span", { class: "explore-desc" }, "読んだ本の要約・引用・批判的読書メモ（任意）"),
       ]),
+      Utils.el("button", { class: "explore-btn", onclick: () => Router.navigate("dictationList") }, [
+        "音読ディクテーション",
+        Utils.el("span", { class: "explore-desc" }, "外国語の音読テキストと音源で聞き取り練習（任意）"),
+      ]),
     ]);
     wrap.appendChild(list);
 

@@ -84,7 +84,8 @@ const QuizSystem = (() => {
     root.appendChild(wrap);
   }
 
-  function renderQuestionItem(item) {
+  function renderQuestionItem(item, onSubmit) {
+    const submit = onSubmit || submitAnswer;
     const box = Utils.el("div", { class: "panel quiz-item" }, [
       Utils.el("p", { class: "quiz-prompt" }, item.prompt),
     ]);
@@ -92,25 +93,26 @@ const QuizSystem = (() => {
     if (item.type === "true_false") {
       box.appendChild(Utils.el("div", { class: "quiz-shown-answer" }, `→ ${item.shownAnswer}`));
       box.appendChild(Utils.el("div", { class: "quiz-choice-row" }, [
-        Utils.el("button", { class: "btn btn-moss", onclick: () => submitAnswer(true) }, "正答"),
-        Utils.el("button", { class: "btn btn-secondary", onclick: () => submitAnswer(false) }, "誤答"),
+        Utils.el("button", { class: "btn btn-moss", onclick: () => submit(true) }, "正答"),
+        Utils.el("button", { class: "btn btn-secondary", onclick: () => submit(false) }, "誤答"),
       ]));
     } else if (item.type === "multiple_choice") {
       const choiceWrap = Utils.el("div", { class: "quiz-choice-grid" });
       item.choices.forEach((choice) => {
         choiceWrap.appendChild(
-          Utils.el("button", { class: "btn btn-secondary quiz-choice-btn", onclick: () => submitAnswer(choice) }, choice)
+          Utils.el("button", { class: "btn btn-secondary quiz-choice-btn", onclick: () => submit(choice) }, choice)
         );
       });
       box.appendChild(choiceWrap);
     } else if (item.type === "reorder") {
-      box.appendChild(renderReorderUI(item));
+      box.appendChild(renderReorderUI(item, submit));
     }
 
     return box;
   }
 
-  function renderReorderUI(item) {
+  function renderReorderUI(item, onSubmit) {
+    const submit = onSubmit || submitAnswer;
     const wrap = Utils.el("div", { class: "reorder-wrap" });
     let picked = [];
     const answerDisplay = Utils.el("div", { class: "reorder-answer-display" }, "");
@@ -141,7 +143,7 @@ const QuizSystem = (() => {
 
     const submitBtn = Utils.el("button", {
       class: "btn btn-moss",
-      onclick: () => submitAnswer(picked.map((i) => item.scrambled[i]).join("")),
+      onclick: () => submit(picked.map((i) => item.scrambled[i]).join("")),
     }, "決定");
 
     wrap.appendChild(answerDisplay);
@@ -154,7 +156,12 @@ const QuizSystem = (() => {
     const item = session.items[session.index];
     const isCorrect = checkAnswer(item, rawAnswer);
     session.userAnswers.push({ questionId: item.questionId, isCorrect, item, userAnswer: rawAnswer });
-    if (!isCorrect) session.hadWrongThisRun = true;
+    if (!isCorrect) {
+      session.hadWrongThisRun = true;
+      // 【追加要望対応】☆フォルダ：問題単位で誤答回数を記録する（3回で☆フォルダ入り）。
+      const addedToStar = GameState.recordQuestionMistake(item.questionId, session.genreId, session.stageId, session.level);
+      if (addedToStar) Utils.showToast("この問題は☆フォルダに入りました（明日また出題されます）", "info");
+    }
 
     Utils.showToast(isCorrect ? "正解！" : "不正解…", isCorrect ? "success" : "error");
 
@@ -185,5 +192,5 @@ const QuizSystem = (() => {
   // 【Phase5変更】"fogStageSelect" は mapSystem.js が登録するため、ここでは登録しない。
   Router.registerScreen("quiz", renderQuizScreen);
 
-  return { startLevel, isLevelLocked, emptyStageProgress, levelLabel };
+  return { startLevel, isLevelLocked, emptyStageProgress, levelLabel, renderQuestionItem, checkAnswer };
 })();

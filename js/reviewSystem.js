@@ -12,6 +12,10 @@ const ReviewSystem = (() => {
     "2week": "2週間前の復習", "1month": "1か月前の復習",
   };
   const REVIEW_COMPLETION_COMPASS = 2;
+  // 【追加要望対応】☆フォルダ（3回以上間違えた問題の翌日再出題）の報酬は、
+  // 通常の復習クエスト報酬の半分とする（仕様に明記が無いため、コンパスは
+  // REVIEW_COMPLETION_COMPASSの半分、設計図確率は「1日後」基本確率の半分を採用）。
+  const STAR_REVIEW_COMPASS = Math.max(1, Math.round(REVIEW_COMPLETION_COMPASS / 2));
 
   function scheduleInitialReviews(genreId, stageId, stageWasPerfect) {
     const today = Utils.todayStr();
@@ -58,16 +62,41 @@ const ReviewSystem = (() => {
     return categories;
   }
 
+  /** 【追加要望対応】☆フォルダ：3回以上間違えた問題のうち、本日以降が出題予定日のもの */
+  function getStarQuestionsDue() {
+    const state = GameState.getState();
+    const today = Utils.todayStr();
+    return (state.starQuestions || []).filter((e) => e.status === "pending" && e.scheduledDate <= today);
+  }
+
   function renderReviewListScreen(root) {
     const categories = getCategorizedReviews();
+    const starEntries = getStarQuestionsDue();
     const wrap = Utils.el("div", { class: "screen-inner" });
     wrap.appendChild(Utils.el("h2", {}, "知の探究"));
 
     const totalPending = Object.values(categories).reduce((sum, arr) => sum + arr.length, 0);
-    if (totalPending === 0) {
+    if (totalPending === 0 && starEntries.length === 0) {
       wrap.appendChild(Utils.el("p", { class: "empty-state" }, "今日の復習はすべて完了しています。お疲れさまでした。"));
       root.appendChild(wrap);
       return;
+    }
+
+    // 【追加要望対応】☆フォルダ（3回以上間違えた問題）を最上部に表示する。
+    if (starEntries.length > 0) {
+      const details = Utils.el("details", { class: "review-accordion", open: "true" });
+      details.appendChild(Utils.el("summary", {}, `☆ 3回以上間違えた問題（残り${starEntries.length}問）`));
+      starEntries.forEach((entry) => {
+        const ctx = GameState.findStageContext(entry.stageId);
+        const question = GameState.findQuestionById(entry.questionId);
+        const label = (ctx ? `${ctx.genre.name} - ${ctx.questionSet.name} - ${ctx.stage.name}` : entry.stageId)
+          + (question ? `「${question.question}」` : "");
+        details.appendChild(Utils.el("div", { class: "review-row review-row-available" }, [
+          Utils.el("span", {}, label),
+          Utils.el("button", { class: "btn btn-primary", onclick: () => Router.navigate("starReviewPlay", { entryId: entry.id }) }, "挑戦する"),
+        ]));
+      });
+      wrap.appendChild(details);
     }
 
     Object.entries(categories).forEach(([label, entries]) => {
@@ -143,6 +172,15 @@ const ReviewSystem = (() => {
       onclick: () => {
         const results = inputs.map(({ item, input }) => input.value.trim() === item.correctAnswer);
         const allCorrect = results.every(Boolean);
+        // 【追加要望対応】☆フォルダ：復習タイピングでの誤答も問題単位で記録する。
+        let anyAddedToStar = false;
+        inputs.forEach(({ item }, i) => {
+          if (!results[i]) {
+            const added = GameState.recordQuestionMistake(item.questionId, entry.genreId, entry.stageId, "typing");
+            if (added) anyAddedToStar = true;
+          }
+        });
+        if (anyAddedToStar) Utils.showToast("誤答した問題が☆フォルダに入りました（明日また出題されます）", "info");
         showReviewFeedbackThenComplete(entry, allCorrect, inputs.map(({ item, input }, i) => ({
           prompt: item.prompt, correctAnswer: item.correctAnswer, isCorrect: results[i],
           userAnswer: input.value.trim(), note: item.note,
@@ -370,8 +408,102 @@ const ReviewSystem = (() => {
     root.appendChild(wrap);
   }
 
+  /* ============================================================
+     【追加要望対応】☆フォルダ：3回以上間違えた問題の翌日単問再出題
+     ============================================================ */
+
+  function findStarEntry(entryId) {
+    return (GameState.getState().starQuestions || []).find((e) => e.id === entryId);
+  }
+
+  function renderStarReviewPlayScreen(root, params) {
+    const entry = findStarEntry(params.entryId);
+    if (!entry) { root.appendChild(Utils.el("p", { class: "empty-state" }, "データが見つかりません")); return; }
+    const question = GameState.findQuestionById(entry.questionId);
+    if (!question) { root.appendChild(Utils.el("p", { class: "empty-state" }, "問題データが見つかりません")); return; }
+
+    const wrap = Utils.el("div", { class: "screen-inner" });
+    wrap.appendChild(Utils.el("h2", {}, "☆ 3回以上間違えた問題"));
+    wrap.appendChild(Utils.el("p", { class: "explore-desc" }, "前回までと同じ形式で出題します。正答すると通常の復習の半分の報酬がもらえます。"));
+
+    if (entry.format === "lv1" || entry.format === "lv2" || entry.format === "lv3") {
+      const item = QuestionSystem.buildQuestionsForLevel(entry.format, [question])[0];
+      wrap.appendChild(QuizSystem.renderQuestionItem(item, (rawAnswer) => {
+        const isCorrect = QuizSystem.checkAnswer(item, rawAnswer);
+        completeStarReview(entry, isCorrect, item.prompt, item.correctAnswer, rawAnswer, question.note);
+      }));
+    } else {
+      // "typing"：復習のタイピング形式と同じ、完全一致判定
+      const box = Utils.el("div", { class: "panel" }, [
+        Utils.el("p", { class: "quiz-prompt" }, question.question),
+      ]);
+      const input = Utils.el("input", { type: "text", class: "review-typing-input", placeholder: "答えを入力" });
+      box.appendChild(input);
+      box.appendChild(Utils.el("button", {
+        class: "btn btn-primary btn-block",
+        onclick: () => {
+          const isCorrect = input.value.trim() === question.answer;
+          completeStarReview(entry, isCorrect, question.question, question.answer, input.value.trim(), question.note);
+        },
+      }, "採点する"));
+      wrap.appendChild(box);
+    }
+
+    root.appendChild(wrap);
+  }
+
+  function completeStarReview(entry, wasCorrect, prompt, correctAnswer, userAnswer, note) {
+    const root = document.getElementById("screen-container");
+    root.innerHTML = "";
+    const wrap = Utils.el("div", { class: "screen screen-inner result-screen" });
+    wrap.appendChild(Utils.el("h2", {}, wasCorrect ? "正解！" : "不正解…"));
+
+    const row = Utils.el("div", { class: "answer-review-row " + (wasCorrect ? "is-correct" : "is-wrong") }, [
+      Utils.el("span", {}, prompt),
+      Utils.el("span", { class: "answer-correct-value" }, `正解: ${Utils.formatAnswerValue(correctAnswer)}`),
+    ]);
+    row.addEventListener("click", () => Utils.showAnswerDetailPopup({
+      questionId: entry.questionId, prompt, isCorrect: wasCorrect, userAnswer, correctAnswer, note,
+    }));
+    wrap.appendChild(row);
+
+    if (wasCorrect) {
+      // 【追加要望対応】正答時のみ☆フォルダから外し、誤答回数をリセット。報酬は半分。
+      RewardSystem.grantCompass(STAR_REVIEW_COMPASS);
+      const halfProb = RewardSystem.BASE_FRAGMENT_PROB["1day"] / 2;
+      const wonFragment = RewardSystem.rollFragment(entry.genreId, halfProb);
+
+      GameState.update((state) => {
+        const e = state.starQuestions.find((x) => x.id === entry.id);
+        if (e) e.status = "done";
+        state.questionMistakes[entry.questionId] = 0;
+      });
+
+      wrap.appendChild(Utils.el("div", { class: "panel reward-panel" + (wonFragment ? " fragment-pop" : "") }, [
+        Utils.el("div", { class: "reward-line" }, `🧭 コンパス +${STAR_REVIEW_COMPASS}（通常の復習の半分）`),
+        Utils.el("div", { class: "reward-line" }, wonFragment
+          ? "🧩 設計図の欠片を手に入れた！"
+          : `探索したが、今回は欠片は見つからなかった（確率${halfProb.toFixed(1)}%）`),
+      ]));
+    } else {
+      // 誤答時：☆フォルダには残したまま、翌日また出題する。
+      GameState.update((state) => {
+        const e = state.starQuestions.find((x) => x.id === entry.id);
+        if (e) e.scheduledDate = Utils.addDays(Utils.todayStr(), 1);
+      });
+      wrap.appendChild(Utils.el("p", {}, "この問題は☆フォルダに残り、明日また出題されます。"));
+    }
+
+    wrap.appendChild(Utils.el("button", {
+      class: "btn btn-moss btn-block",
+      onclick: () => Router.navigate("review"),
+    }, "知の探究へ戻る"));
+    root.appendChild(wrap);
+  }
+
   Router.registerScreen("review", renderReviewListScreen);
   Router.registerScreen("reviewPlay", renderReviewPlayScreen);
+  Router.registerScreen("starReviewPlay", renderStarReviewPlayScreen);
 
-  return { scheduleInitialReviews, getCategorizedReviews };
+  return { scheduleInitialReviews, getCategorizedReviews, getStarQuestionsDue };
 })();

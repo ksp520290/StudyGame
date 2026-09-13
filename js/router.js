@@ -52,21 +52,53 @@ const Router = (() => {
     return currentScreen;
   }
 
+  /**
+   * 【追加要望対応】待ち受け画面の「ログイン」は、デバイス上のバックアップファイル
+   * （終了ボタンで保存したJSON等）を選択して読み込む方式にした。
+   * この端末にすでに保存データがある場合向けに、下に小さく
+   * 「この端末の保存データで続ける」も用意し、初回利用や
+   * バックアップファイルが手元に無い場合の入り口を確保している。
+   */
   function renderTitleScreen(root) {
+    const backupFileInput = Utils.el("input", { type: "file", accept: ".json,application/json", style: "display:none;" });
+    backupFileInput.addEventListener("change", () => {
+      const file = backupFileInput.files[0];
+      if (file) handleLoginWithBackupFile(file);
+      backupFileInput.value = "";
+    });
+
     root.appendChild(
       Utils.el("div", { class: "screen-title" }, [
         Utils.el("div", {}, [
           Utils.el("h1", { class: "title-heading" }, "霧晴れの開拓譚"),
           Utils.el("p", { class: "title-sub" }, "学びが、まだ見ぬ世界の霧を晴らす。"),
         ]),
-        Utils.el("button", { class: "btn btn-primary", onclick: handleLoginClick }, "ログイン"),
+        Utils.el("button", { class: "btn btn-primary", onclick: () => backupFileInput.click() }, "ログイン"),
+        Utils.el("p", { class: "title-sub", style: "font-size:12px; margin-top:4px;" }, "デバイス内のバックアップファイル（.json）を選択します"),
+        Utils.el("button", {
+          class: "btn btn-secondary btn-block", style: "margin-top:16px;",
+          onclick: handleContinueOnThisDeviceClick,
+        }, "この端末の保存データで続ける"),
+        backupFileInput,
       ])
     );
   }
 
-  async function handleLoginClick() {
+  async function handleLoginWithBackupFile(file) {
     await GameState.init();
-    await App.playCutscene("assets/video/open.mp4", "扉が開く…");
+    try {
+      await ImportExport.importBackupFromFile(file);
+    } catch (err) {
+      // importBackupFromFile側でトースト表示済み。ログインは中断せず待ち受け画面のまま。
+      return;
+    }
+    await App.playCutscene("open", "扉が開く…");
+    navigate("home");
+  }
+
+  async function handleContinueOnThisDeviceClick() {
+    await GameState.init();
+    await App.playCutscene("open", "扉が開く…");
     navigate("home");
   }
 
@@ -89,18 +121,24 @@ const Router = (() => {
             class: "icon-btn",
             "aria-label": "ガチャ",
             onclick: () => navigate((typeof DiarySystem !== "undefined" && DiarySystem.isGachaUnlockedToday()) ? "gacha" : "journal"),
-          }, "🎰"),
+          }, "📔"),
         ]),
         Utils.el("div", { class: "level-badge" }, [
           Utils.el("div", { class: "level-num" }, String(level)),
           Utils.el("div", { class: "fs-xs" }, "累計ログイン日数"),
         ]),
-        Utils.el("button", { class: "icon-btn", "aria-label": "バックアップJSONを保存して終了", onclick: () => ImportExport.exportBackup() }, "終了"),
+        Utils.el("button", {
+          class: "icon-btn", "aria-label": "保存して終了",
+          // 【追加要望対応】終了ボタン：まずGameState.persist()でDB（IndexedDB/LocalStorage）への
+          // 保存を明示的に確定させてから、従来通りバックアップJSONも書き出す。
+          onclick: () => { GameState.persist().then(() => ImportExport.exportBackup()); },
+        }, "終了"),
       ])
     );
 
     const pendingReviewCount = ReviewSystem
       ? Object.values(ReviewSystem.getCategorizedReviews()).reduce((sum, arr) => sum + arr.length, 0)
+        + ReviewSystem.getStarQuestionsDue().length
       : 0;
     const recommendText = pendingReviewCount > 0
       ? `今日の復習が ${pendingReviewCount} クエスト待っています`
@@ -609,6 +647,7 @@ const Router = (() => {
 
     const importFileInput = Utils.el("input", { type: "file", accept: ".json,.csv,application/json,text/csv", style: "margin-top:6px; width:100%;" });
     const resultBox = Utils.el("div", { class: "settings-row", style: "display:none; flex-direction:column; align-items:flex-start; white-space:pre-wrap; font-size:13px;" });
+    const conflictBox = Utils.el("div", { style: "display:none; margin-top:12px;" });
     container.appendChild(importFileInput);
     container.appendChild(Utils.el("button", {
       class: "btn btn-primary btn-block", style: "margin-top:8px;",
@@ -623,7 +662,7 @@ const Router = (() => {
           const parsed = importFmt.getFormat() === "json"
             ? CsvManager.parseQuestionsJSON(text, existingIds)
             : CsvManager.parseQuestionsCSV(text, existingIds);
-          const { questions, errors, warnings } = parsed;
+          const { questions, conflicts, errors, warnings } = parsed;
 
           resultBox.style.display = "flex";
           const lines = [];
@@ -637,37 +676,105 @@ const Router = (() => {
             warnings.slice(0, 5).forEach((w) => lines.push("  - " + w));
           }
 
-          if (questions.length === 0) {
-            lines.push("✅ 取り込める問題がありませんでした");
-            resultBox.textContent = lines.join("\n");
-            Utils.showToast("取り込める問題がありませんでした", "error");
-            return;
+          if (questions.length > 0) {
+            GameState.update((s) => {
+              const applyResult = CsvManager.applyImportedQuestions(s, questions, {
+                scope,
+                genreId: scope !== "all" ? genreSelect.value : null,
+                questionSetId: (scope === "questionset" || scope === "stage") ? qsSelect.value : null,
+                stageId: scope === "stage" ? stageSelect.value : null,
+                fallbackQuestionSetName: fallbackQsInput ? fallbackQsInput.value.trim() : "",
+                fallbackStageName: fallbackStageInput ? fallbackStageInput.value.trim() : "",
+              });
+              lines.push(`✅ 新規取り込み: ${applyResult.imported}問（新規の道 ${applyResult.createdQuestionSets}件・新規ステージ ${applyResult.createdStages}件${scope === "all" ? `・新規ジャンル ${applyResult.createdGenres}件` : ""}）`);
+              if (applyResult.skipped.length > 0) {
+                lines.push(`⚠ 配置できず除外: ${applyResult.skipped.length}件`);
+                applyResult.skipped.slice(0, 5).forEach((s2) => lines.push("  - " + s2));
+              }
+            });
           }
 
-          GameState.update((s) => {
-            const applyResult = CsvManager.applyImportedQuestions(s, questions, {
-              scope,
-              genreId: scope !== "all" ? genreSelect.value : null,
-              questionSetId: (scope === "questionset" || scope === "stage") ? qsSelect.value : null,
-              stageId: scope === "stage" ? stageSelect.value : null,
-              fallbackQuestionSetName: fallbackQsInput ? fallbackQsInput.value.trim() : "",
-              fallbackStageName: fallbackStageInput ? fallbackStageInput.value.trim() : "",
-            });
-            lines.push(`✅ 取り込み: ${applyResult.imported}問（新規の道 ${applyResult.createdQuestionSets}件・新規ステージ ${applyResult.createdStages}件${scope === "all" ? `・新規ジャンル ${applyResult.createdGenres}件` : ""}）`);
-            if (applyResult.skipped.length > 0) {
-              lines.push(`⚠ 配置できず除外: ${applyResult.skipped.length}件`);
-              applyResult.skipped.slice(0, 5).forEach((s2) => lines.push("  - " + s2));
-            }
-          });
-
+          if (conflicts.length === 0 && questions.length === 0) {
+            lines.push("✅ 取り込める問題がありませんでした");
+          }
           resultBox.textContent = lines.join("\n");
-          Utils.showToast(`${questions.length}問を取り込みました`, "success");
+          if (questions.length > 0) Utils.showToast(`${questions.length}問を取り込みました`, "success");
+
+          renderConflicts(conflicts);
         };
         reader.onerror = () => Utils.showToast("ファイルの読み込みに失敗しました", "error");
         reader.readAsText(file, "utf-8");
       },
     }, "取り込む"));
     container.appendChild(resultBox);
+    container.appendChild(conflictBox);
+
+    /**
+     * 【追加要望対応】idが既存データと重複した行の解決UI。
+     * 行ごとに「新（インポート内容）」「旧（既存のまま）」を選べるほか、
+     * 「すべて新を採用」「すべて旧を残す」の一括ボタンも用意する。
+     */
+    function renderConflicts(conflicts) {
+      conflictBox.innerHTML = "";
+      if (!conflicts || conflicts.length === 0) { conflictBox.style.display = "none"; return; }
+      conflictBox.style.display = "block";
+
+      conflictBox.appendChild(Utils.el("h4", {}, `⚠ id重複 ${conflicts.length}件（新旧どちらを残すか選んでください）`));
+
+      const radios = []; // { id, incoming, getKeep() }
+      const rowsWrap = Utils.el("div", {});
+
+      conflicts.forEach((c) => {
+        const existing = GameState.findQuestionById(c.id) || {};
+        const name = `conflict_${c.id}`;
+        const oldRadio = Utils.el("input", { type: "radio", name, value: "old", checked: "true" });
+        const newRadio = Utils.el("input", { type: "radio", name, value: "new" });
+        const row = Utils.el("div", { class: "panel", style: "margin-bottom:8px;" }, [
+          Utils.el("div", { class: "diary-field-label" }, `id: ${c.id}（${c.lineNo}行目/件目）`),
+          Utils.el("div", { class: "settings-row" }, [
+            Utils.el("span", {}, "既存(旧)"),
+            Utils.el("span", { class: "value" }, `${existing.question || "(不明)"} → ${existing.answer || "(不明)"}`),
+          ]),
+          Utils.el("div", { class: "settings-row" }, [
+            Utils.el("span", {}, "取込データ(新)"),
+            Utils.el("span", { class: "value" }, `${c.incoming.question} → ${c.incoming.answer}`),
+          ]),
+          Utils.el("label", { class: "settings-row" }, [oldRadio, "旧（既存）を残す"]),
+          Utils.el("label", { class: "settings-row" }, [newRadio, "新（取込データ）を採用する"]),
+        ]);
+        radios.push({ id: c.id, incoming: c.incoming, oldRadio, newRadio });
+        rowsWrap.appendChild(row);
+      });
+
+      conflictBox.appendChild(Utils.el("div", { class: "quiz-choice-row", style: "margin:8px 0;" }, [
+        Utils.el("button", {
+          class: "btn btn-secondary",
+          onclick: () => radios.forEach((r) => { r.newRadio.checked = true; }),
+        }, "すべて新を採用"),
+        Utils.el("button", {
+          class: "btn btn-secondary",
+          onclick: () => radios.forEach((r) => { r.oldRadio.checked = true; }),
+        }, "すべて旧を残す"),
+      ]));
+
+      conflictBox.appendChild(rowsWrap);
+
+      conflictBox.appendChild(Utils.el("button", {
+        class: "btn btn-primary btn-block",
+        onclick: () => {
+          const resolutions = radios.map((r) => ({
+            id: r.id, incoming: r.incoming, keep: r.newRadio.checked ? "new" : "old",
+          }));
+          GameState.update((s) => {
+            CsvManager.applyConflictResolutions(s, resolutions);
+          });
+          const newCount = resolutions.filter((r) => r.keep === "new").length;
+          Utils.showToast(`重複${conflicts.length}件を反映しました（新採用: ${newCount}件）`, "success");
+          conflictBox.innerHTML = "";
+          conflictBox.style.display = "none";
+        },
+      }, "重複の解決を反映する"));
+    }
   }
 
   /* --- 【追加要望対応】画像自動保存設定（GitHub連携。assetManager.js参照） --- */

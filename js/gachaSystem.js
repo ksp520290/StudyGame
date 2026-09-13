@@ -125,7 +125,7 @@ const GachaSystem = (() => {
   }
 
   function runGachaPull(resultBox, panel) {
-    App.playCutscene("assets/video/gacha.mp4", "運命の一枚……").then(() => {
+    App.playCutscene("gacha", "運命の一枚……").then(() => {
       const result = pull();
       resultBox.innerHTML = "";
       if (!result.ok) {

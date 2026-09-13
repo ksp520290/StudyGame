@@ -118,31 +118,47 @@ const CsvManager = (() => {
      ============================================================ */
 
   /**
+   * 【追加要望対応】idが既存データと重複した行を、エラーとして弾くのではなく
+   * 「conflicts」として別集計し、呼び出し側（router.js）でユーザーに新旧どちらを
+   * 残すか選ばせられるようにする。
+   */
+  function cleanQuestionFields(q) {
+    const clean = { id: q.id, question: q.question, answer: q.answer };
+    if (q.antonym) clean.antonym = q.antonym;
+    if (q.synonyms && q.synonyms.length) clean.synonyms = q.synonyms;
+    if (q.unrelated && q.unrelated.length) clean.unrelated = q.unrelated;
+    if (q.generateQuestion) clean.generateQuestion = q.generateQuestion;
+    if (q.note) clean.note = q.note;
+    return clean;
+  }
+
+  /**
    * @param {string} text CSVファイルの中身
    * @param {Set<string>} existingIds 既存の問題ID（重複チェック用。ジャンル横断で渡すこと）
-   * @returns {{ questions: Array, errors: Array<string>, warnings: Array<string> }}
+   * @returns {{ questions: Array, conflicts: Array, errors: Array<string>, warnings: Array<string> }}
    */
   function parseQuestionsCSV(text, existingIds = new Set()) {
     const errors = [];
     const warnings = [];
     const questions = [];
+    const conflicts = [];
 
     let rows;
     try {
       rows = parseCSV(text);
     } catch (err) {
-      return { questions: [], errors: ["CSVの解析に失敗しました: " + err.message], warnings: [] };
+      return { questions: [], conflicts: [], errors: ["CSVの解析に失敗しました: " + err.message], warnings: [] };
     }
 
     if (rows.length === 0) {
-      return { questions: [], errors: ["CSVにデータ行がありません"], warnings: [] };
+      return { questions: [], conflicts: [], errors: ["CSVにデータ行がありません"], warnings: [] };
     }
 
     const header = rows[0].map((h) => h.trim().toLowerCase());
     const missingCols = REQUIRED.filter((r) => !header.includes(r));
     if (missingCols.length > 0) {
       errors.push(`必須列が不足しています: ${missingCols.join(", ")}（ヘッダーは ${HEADER.join(",")} を推奨）`);
-      return { questions: [], errors, warnings };
+      return { questions: [], conflicts: [], errors, warnings };
     }
 
     const colIndex = {};
@@ -167,8 +183,8 @@ const CsvManager = (() => {
       if (!question) { errors.push(`${lineNo}行目（id:${id}）: questionが空です`); continue; }
       if (!answer) { errors.push(`${lineNo}行目（id:${id}）: answerが空です`); continue; }
 
-      if (existingIds.has(id) || seenInFile.has(id)) {
-        errors.push(`${lineNo}行目: id「${id}」が重複しています`);
+      if (seenInFile.has(id)) {
+        errors.push(`${lineNo}行目: id「${id}」がファイル内で重複しています`);
         continue;
       }
       seenInFile.add(id);
@@ -196,10 +212,16 @@ const CsvManager = (() => {
       if (genre) q.genre = genre;
       if (note) q.note = note;
 
-      questions.push(q);
+      // 【追加要望対応】既存データとID重複 → エラーで弾かず「conflicts」として集計し、
+      // 呼び出し側で新旧どちらを残すか選ばせる。
+      if (existingIds.has(id)) {
+        conflicts.push({ lineNo, id, incoming: q });
+      } else {
+        questions.push(q);
+      }
     }
 
-    return { questions, errors, warnings };
+    return { questions, conflicts, errors, warnings };
   }
 
   /**
@@ -212,20 +234,21 @@ const CsvManager = (() => {
     const errors = [];
     const warnings = [];
     const questions = [];
+    const conflicts = [];
 
     let parsed;
     try {
       parsed = JSON.parse(text);
     } catch (err) {
-      return { questions: [], errors: ["JSONの形式が正しくありません: " + err.message], warnings: [] };
+      return { questions: [], conflicts: [], errors: ["JSONの形式が正しくありません: " + err.message], warnings: [] };
     }
 
     const rawList = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.questions) ? parsed.questions : null);
     if (!rawList) {
-      return { questions: [], errors: ["JSONの構造が不正です（questions配列、または問題の配列を指定してください）"], warnings: [] };
+      return { questions: [], conflicts: [], errors: ["JSONの構造が不正です（questions配列、または問題の配列を指定してください）"], warnings: [] };
     }
     if (rawList.length === 0) {
-      return { questions: [], errors: ["JSONにデータがありません"], warnings: [] };
+      return { questions: [], conflicts: [], errors: ["JSONにデータがありません"], warnings: [] };
     }
 
     const seenInFile = new Set();
@@ -240,8 +263,8 @@ const CsvManager = (() => {
       if (!question) { errors.push(`${lineNo}件目（id:${id}）: questionが空です`); return; }
       if (!answer) { errors.push(`${lineNo}件目（id:${id}）: answerが空です`); return; }
 
-      if (existingIds.has(id) || seenInFile.has(id)) {
-        errors.push(`${lineNo}件目: id「${id}」が重複しています`);
+      if (seenInFile.has(id)) {
+        errors.push(`${lineNo}件目: id「${id}」がファイル内で重複しています`);
         return;
       }
       seenInFile.add(id);
@@ -274,10 +297,14 @@ const CsvManager = (() => {
       if (genre) q.genre = genre;
       if (note) q.note = note;
 
-      questions.push(q);
+      if (existingIds.has(id)) {
+        conflicts.push({ lineNo, id, incoming: q });
+      } else {
+        questions.push(q);
+      }
     });
 
-    return { questions, errors, warnings };
+    return { questions, conflicts, errors, warnings };
   }
 
   /* ============================================================
@@ -399,17 +426,35 @@ const CsvManager = (() => {
         }
       }
 
-      const clean = { id: q.id, question: q.question, answer: q.answer };
-      if (q.antonym) clean.antonym = q.antonym;
-      if (q.synonyms && q.synonyms.length) clean.synonyms = q.synonyms;
-      if (q.unrelated && q.unrelated.length) clean.unrelated = q.unrelated;
-      if (q.generateQuestion) clean.generateQuestion = q.generateQuestion;
-      if (q.note) clean.note = q.note;
-      stage.questions.push(clean);
+      stage.questions.push(cleanQuestionFields(q));
       imported++;
     });
 
     return { imported, skipped, createdGenres, createdQuestionSets, createdStages };
+  }
+
+  /**
+   * 【追加要望対応】ID重複（conflicts）の解決結果を実際のGameStateへ反映する。
+   * 重複は「既存データを、取り込み側のファイル内で見つかった同一IDの問題データで
+   * 上書きするかどうか」という単純な二択として扱う（配置先の道・ステージは移動しない。
+   * あくまで内容＝question/answer等のフィールドのみを差し替える）。
+   *
+   * @param {object} mutableState GameState.update((s)=>...) のs
+   * @param {Array<{id: string, keep: "new"|"old", incoming: object}>} resolutions
+   * @returns {{ updated: number, keptOld: number }}
+   */
+  function applyConflictResolutions(mutableState, resolutions) {
+    let updated = 0, keptOld = 0;
+    resolutions.forEach((r) => {
+      if (r.keep !== "new") { keptOld++; return; }
+      const existing = GameState.findQuestionById(r.id);
+      if (!existing) return;
+      // idはキーなので変えない。それ以外のフィールドを新データで丸ごと差し替える。
+      Object.keys(existing).forEach((k) => { if (k !== "id") delete existing[k]; });
+      Object.assign(existing, cleanQuestionFields(r.incoming));
+      updated++;
+    });
+    return { updated, keptOld };
   }
 
   return {
@@ -423,5 +468,7 @@ const CsvManager = (() => {
     exportGenreToCSV,
     collectQuestions,
     applyImportedQuestions,
+    applyConflictResolutions,
+    cleanQuestionFields,
   };
 })();

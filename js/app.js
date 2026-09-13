@@ -10,7 +10,28 @@ const App = (() => {
     Router.navigate("title");
   }
 
-  function playCutscene(src, fallbackText) {
+  /**
+   * 【追加要望対応】縦長（ポートレート）画面では "_mobile" 付きの動画（例：open_mobile.mp4）、
+   * 横長（ランドスケープ）画面では通常の動画（例：open.mp4）を再生する。
+   * 判定は再生開始時の1回のみ行い、以後 resize イベントなどでは切り替えない
+   * （再生中に画面の向きが変わっても、流れている映像はそのまま最後まで再生する）。
+   */
+  function isPortrait() {
+    return window.innerHeight >= window.innerWidth;
+  }
+
+  function resolveCutsceneSrc(baseName) {
+    const suffix = isPortrait() ? "_mobile" : "";
+    return `assets/video/${baseName}${suffix}.mp4`;
+  }
+
+  /**
+   * @param {string} baseName "open" | "gacha" など、assets/video/配下の動画のベース名
+   *   （拡張子・向き接尾辞なし。実ファイル名は resolveCutsceneSrc() が決定する）
+   * @param {string} fallbackText 動画が無い/再生失敗時のフォールバック表示文言
+   */
+  function playCutscene(baseName, fallbackText) {
+    const src = resolveCutsceneSrc(baseName);
     return new Promise((resolve) => {
       const overlay = document.getElementById("video-overlay");
       const video = document.getElementById("cutscene-video");
