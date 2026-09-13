@@ -26,6 +26,7 @@ const Router = (() => {
       return;
     }
     currentScreen = name;
+    if (typeof BgmSystem !== "undefined") BgmSystem.onScreenChange(name);
 
     if (name === "title") {
       nav().classList.add("hidden");
@@ -136,22 +137,40 @@ const Router = (() => {
       ])
     );
 
+    // 【追加要望対応】行動経済学の「コミットメント・デバイス」：今日の目標を自分で決めて宣言する。
+    wrap.appendChild(renderDailyGoalBox());
+
     const pendingReviewCount = ReviewSystem
       ? Object.values(ReviewSystem.getCategorizedReviews()).reduce((sum, arr) => sum + arr.length, 0)
         + ReviewSystem.getStarQuestionsDue().length
       : 0;
-    const recommendText = pendingReviewCount > 0
-      ? `今日の復習が ${pendingReviewCount} クエスト待っています`
-      : (genres.length > 0 ? `「${genres[0].name}」の新しい問題に挑戦する` : "設定画面からジャンルを追加しよう");
-    const recommendTarget = pendingReviewCount > 0 ? "review" : "explore";
 
-    wrap.appendChild(
-      Utils.el("div", { class: "recommend-box" }, [
-        Utils.el("div", { class: "recommend-label" }, "今日のおすすめ行動"),
-        Utils.el("div", { class: "recommend-action" }, recommendText),
-        Utils.el("button", { class: "btn btn-moss btn-block", onclick: () => navigate(recommendTarget) }, "はじめる"),
-      ])
-    );
+    // 【追加要望対応】「はじめる」ボタン：復習が溜まっている場合は従来通り「知の探究」へ、
+    // そうでない場合は解放率100%ではない「道」のステージ地図画面（areaMap）へ直接ジャンプする
+    // （エリア選択→道の選択、という手順を1タップ省略する）。該当する道が無ければ
+    // 従来通り「探索」画面へ誘導する。
+    const nextStageTarget = (typeof MapSystem !== "undefined") ? MapSystem.findNextIncompleteStageTarget() : null;
+    let recommendText;
+    let onStartClick;
+    if (pendingReviewCount > 0) {
+      recommendText = `今日の復習が ${pendingReviewCount} クエスト待っています`;
+      onStartClick = () => navigate("review");
+    } else if (nextStageTarget) {
+      recommendText = `「${nextStageTarget.genreLabel}」の「${nextStageTarget.questionSetLabel}」に挑戦する`;
+      onStartClick = () => navigate("areaMap", { genreId: nextStageTarget.genreId, questionSetId: nextStageTarget.questionSetId });
+    } else if (genres.length > 0) {
+      recommendText = `「${genres[0].name}」の新しい問題に挑戦する`;
+      onStartClick = () => navigate("explore");
+    } else {
+      recommendText = "設定画面からジャンルを追加しよう";
+      onStartClick = () => navigate("explore");
+    }
+
+    const recommendBox = Utils.el("div", { class: "recommend-box" }, [
+      Utils.el("div", { class: "recommend-label" }, "今日のおすすめ行動"),
+      Utils.el("div", { class: "recommend-action" }, recommendText),
+      Utils.el("button", { class: "btn btn-moss btn-block", onclick: onStartClick }, "はじめる"),
+    ]);
 
     // 【Phase10】仕様53〜54章：熱狂段階／習慣・愛着段階でホーム画面の重点を切り替える。
     // ゲームシステム自体（データ・確率など）は一切変えず、見せ方のみを変える。
@@ -167,13 +186,56 @@ const Router = (() => {
         panel.appendChild(renderGenreProgressRow(state, genre, isHabitPhase));
       });
     }
-    wrap.appendChild(panel);
+
+    // 【追加要望対応】横長画面では「今日のおすすめ行動」と「自分の世界の様子」を横並びにする
+    // （縦長画面では従来通り縦に並べる。CSS側のみで制御し、要素の親子構造で切り替える）。
+    wrap.appendChild(
+      Utils.el("div", { class: "home-panels-row" }, [recommendBox, panel])
+    );
 
     if (isHabitPhase) {
       wrap.appendChild(renderWorldSummaryPanel(state));
     }
 
     root.appendChild(wrap);
+  }
+
+  /**
+   * 【追加要望対応】「今日の目標」ボックス。行動経済学の「コミットメント・デバイス」＋
+   * 「実行意図（if-then プランニング）」の考え方を取り入れ、ユーザー自身に今日挑戦する
+   * クエスト数を宣言してもらう。目標達成は損失にはならない（未達成でも何も失わない）ため、
+   * 損失回避の悪用にはならず、あくまで前向きな目安として機能させる。
+   */
+  function renderDailyGoalBox() {
+    const goal = GameState.getDailyGoal();
+    const box = Utils.el("div", { class: "panel daily-goal-box" });
+
+    if (!goal) {
+      box.appendChild(Utils.el("h3", {}, "今日の目標を決めよう"));
+      box.appendChild(Utils.el("p", { class: "explore-desc" }, "今日挑戦するクエスト数を決めておくと、達成しやすくなります。"));
+      const row = Utils.el("div", { class: "quiz-choice-row" });
+      [1, 3, 5].forEach((n) => {
+        row.appendChild(Utils.el("button", {
+          class: "btn btn-secondary",
+          onclick: () => { GameState.setDailyGoal(n); navigate("home"); },
+        }, `${n}問`));
+      });
+      box.appendChild(row);
+      return box;
+    }
+
+    const achieved = goal.completed >= goal.target;
+    const remaining = Math.max(0, goal.target - goal.completed);
+    box.appendChild(Utils.el("h3", {}, "今日の目標"));
+    box.appendChild(Utils.el("div", { class: "progress-track" }, [
+      Utils.el("div", { class: "progress-fill", style: `width: ${Math.min(100, Math.round((goal.completed / Math.max(1, goal.target)) * 100))}%` }),
+    ]));
+    box.appendChild(Utils.el("p", {},
+      achieved
+        ? `今日の目標を達成しました！（${goal.completed} / ${goal.target}）`
+        : `あと${remaining}クエストで達成です（${goal.completed} / ${goal.target}）`
+    ));
+    return box;
   }
 
   /** 熱狂段階：ステージ進捗を主役に。習慣段階：設計図・建築の積み上げを主役にする */
@@ -396,7 +458,7 @@ const Router = (() => {
 
   function renderSettingsScreen(root) {
     const state = GameState.getState();
-    const wrap = Utils.el("div", { class: "screen-inner" });
+    const wrap = Utils.el("div", { class: "screen-inner settings-screen-inner" });
     wrap.appendChild(Utils.el("h2", {}, "設定"));
 
     wrap.appendChild(renderAccountInfoGroup(state));

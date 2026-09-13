@@ -302,6 +302,11 @@ const MapSystem = (() => {
     bg.setAttribute("class", "map-land-bg");
     svg.appendChild(bg);
 
+    // 【追加要望対応】ステージ霧画像（denceFog/lightFog/fogYellow.png）用のclipPathを
+    // まとめて格納するdefs（ステージ図形と同じ輪郭で画像を切り抜くために使う）。
+    const fogDefs = document.createElementNS(svgNS, "defs");
+    svg.appendChild(fogDefs);
+
     // --- ステージをつなぐ道（土地の上・建築物の下） ---
     stages.forEach((stage, i) => {
       if (i === 0) return;
@@ -361,7 +366,8 @@ const MapSystem = (() => {
     stages.forEach((stage, i) => {
       const pos = areaMap.stagePositions[stage.id];
       const progress = state.stageProgress[stage.id];
-      const fogOpacity = FogSystem.stageFogOpacity(progress);
+      // 【追加要望対応】霧は単色塗りつぶしではなく画像（denceFog/lightFog/fogYellow.png）で表示する。
+      const fogImage = FogSystem.stageFogImage(progress);
       const stageNumber = i + 1;
       const isFinal = i === stages.length - 1;
       const shapeType = isFinal ? "star"
@@ -383,9 +389,26 @@ const MapSystem = (() => {
       label.textContent = String(stageNumber);
       g.appendChild(label);
 
-      if (fogOpacity > 0) {
-        const fog = makeStageShape(svgNS, shapeType, true);
-        fog.style.opacity = fogOpacity;
+      if (fogImage) {
+        // ステージ図形と同じ輪郭でclipPathを作り、その中に霧画像を敷く（画像がステージの
+        // ○△□☆の形にくり抜かれて見えるようにするため）。
+        const clipId = `stage-fog-clip-${stage.id}`;
+        const clipPath = document.createElementNS(svgNS, "clipPath");
+        clipPath.setAttribute("id", clipId);
+        clipPath.appendChild(makeStageShape(svgNS, shapeType, false));
+        fogDefs.appendChild(clipPath);
+
+        const fogSize = 34;
+        const fog = document.createElementNS(svgNS, "image");
+        fog.setAttribute("x", -fogSize / 2); fog.setAttribute("y", -fogSize / 2);
+        fog.setAttribute("width", fogSize); fog.setAttribute("height", fogSize);
+        fog.setAttribute("preserveAspectRatio", "xMidYMid slice");
+        fog.setAttributeNS("http://www.w3.org/1999/xlink", "href", `assets/img/${fogImage}`);
+        fog.setAttribute("href", `assets/img/${fogImage}`);
+        fog.setAttribute("clip-path", `url(#${clipId})`);
+        fog.setAttribute("class", "map-stage-fog-image");
+        fog.style.opacity = FogSystem.STAGE_FOG_IMAGE_OPACITY;
+        fog.addEventListener("error", () => fog.remove()); // 画像が無い/読み込み失敗しても地図描画は止めない
         g.appendChild(fog);
       }
 
@@ -419,6 +442,13 @@ const MapSystem = (() => {
     root.appendChild(wrap);
 
     setupPanZoom(svg, mapContainer);
+
+    // 【追加要望対応】クエスト結果画面の「次へ進む」から遷移してきた場合、指定された
+    // ステージのレベル選択ポップアップを自動的に開く（毎回エリア選択からやり直す手間を省く）。
+    if (params && params.openStageId) {
+      const idx = stages.findIndex((s) => s.id === params.openStageId);
+      if (idx !== -1) openStagePopup(genre, stages[idx], idx + 1);
+    }
   }
 
   /** ○△□☆ の図形要素を作る（fog=trueなら霧レイヤー用のクラスを付与） */
@@ -703,9 +733,32 @@ const MapSystem = (() => {
     });
   }
 
+  /**
+   * 【追加要望対応】ホーム画面「今日のおすすめ行動」の「はじめる」ボタン用。
+   * 解放率（進捗）が100%ではない「道」を、ジャンル→道の順に探して最初の1件を返す。
+   * 見つかった場合は areaMap 画面（ステージ図形が並ぶ地図）へ直接ジャンプできるよう
+   * { genreId, questionSetId, genreLabel, questionSetLabel } を返す。無ければnull。
+   */
+  function findNextIncompleteStageTarget() {
+    const state = GameState.getState();
+    for (const genre of state.genres || []) {
+      for (const qs of genre.questionSets || []) {
+        if ((qs.quests || []).length === 0) continue;
+        const progress = FogSystem.questionSetProgressPercent(state, qs);
+        if (progress < 100) {
+          return {
+            genreId: genre.id, questionSetId: qs.id,
+            genreLabel: genre.title || genre.name, questionSetLabel: qs.name,
+          };
+        }
+      }
+    }
+    return null;
+  }
+
   Router.registerScreen("fogStageSelect", renderAreaGridScreen);
   Router.registerScreen("questionSetSelect", renderQuestionSetListScreen);
   Router.registerScreen("areaMap", renderAreaMapScreen);
 
-  return { ensureQuestionSetMap, getAllStagesInOrder };
+  return { ensureQuestionSetMap, getAllStagesInOrder, findNextIncompleteStageTarget };
 })();

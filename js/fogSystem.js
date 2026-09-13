@@ -15,6 +15,12 @@ const FogSystem = (() => {
   // 仕様47章のステージ霧不透明度（0〜3レベルクリア数がインデックス）
   const STAGE_FOG_BY_LEVELS_CLEARED = [0.7, 0.5, 0.3, 0];
 
+  // 【追加要望対応】ステージ霧を単色塗りつぶしではなく画像（assets/img/配下）で表示する。
+  // denceFog.png(未開始) → lightFog.png(Lv1クリア) → fogYellow.png(Lv2クリア) → 画像なし(Lv3クリア＝霧完全に晴れ)。
+  // 不透明度は指定通りクリア段階によらず一律30%とする（null＝霧なし）。
+  const STAGE_FOG_IMAGE_BY_LEVELS_CLEARED = ["denceFog.png", "lightFog.png", "fogYellow.png", null];
+  const STAGE_FOG_IMAGE_OPACITY = 0.3;
+
   /** stageProgressから「クリア済みレベル数（0〜3）」を数える */
   function countClearedLevels(progress) {
     if (!progress) return 0;
@@ -25,6 +31,12 @@ const FogSystem = (() => {
   function stageFogOpacity(progress) {
     const cleared = countClearedLevels(progress);
     return STAGE_FOG_BY_LEVELS_CLEARED[cleared];
+  }
+
+  /** ステージ単位の霧画像ファイル名（assets/img/配下）を返す。霧なし（Lv3クリア済み）ならnull。 */
+  function stageFogImage(progress) {
+    const cleared = countClearedLevels(progress);
+    return STAGE_FOG_IMAGE_BY_LEVELS_CLEARED[cleared];
   }
 
   /** 「ステージ配列×3レベル」のうち、クリア済みレベルの割合（0〜100）を返す共通計算 */
@@ -62,7 +74,8 @@ const FogSystem = (() => {
   }
 
   return {
-    stageFogOpacity, areaProgressPercent, questionSetProgressPercent,
+    stageFogOpacity, stageFogImage, STAGE_FOG_IMAGE_OPACITY,
+    areaProgressPercent, questionSetProgressPercent,
     areaFogOpacity, countClearedLevels,
   };
 })();

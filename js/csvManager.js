@@ -4,7 +4,7 @@
  * Phase(未着手分の補完)：問題データのCSVインポート・エクスポート（仕様65章）。
  *
  * CSV構造（仕様65章＋追加要望対応）：
- *   id,genre,question_set,stage,question,answer,antonym,synonyms,unrelated,generate_question,note
+ *   id,genre,question_set,stage,question,answer,antonym,synonyms,unrelated,note,generate_question
  *
  * 【追加要望対応】question_set（道の名前）・stage（ステージ名）・note（補足情報）の列を追加した。
  *   - question_set：この行の問題をどの道（旧称：問題セット）へ取り込むかを行ごとに指定できる。
@@ -27,7 +27,9 @@
 const CsvManager = (() => {
   // 【追加要望対応】データ管理（設定画面）のタブ化にともない、行ごとに取り込み先の
   // ステージ（道の中のステージ）まで指定できるよう "stage" 列を追加した。
-  const HEADER = ["id", "genre", "question_set", "stage", "question", "answer", "antonym", "synonyms", "unrelated", "generate_question", "note"];
+  // 【追加要望対応】出力CSVの列順を id,genre,question_set,stage,question,answer,antonym,
+  // synonyms,unrelated,note,generate_question の順に変更（note と generate_question を入れ替え）。
+  const HEADER = ["id", "genre", "question_set", "stage", "question", "answer", "antonym", "synonyms", "unrelated", "note", "generate_question"];
   const REQUIRED = ["id", "question", "answer"];
   const MULTI_FIELDS = ["synonyms", "unrelated"];
 
@@ -84,8 +86,8 @@ const CsvManager = (() => {
         q.antonym || "",
         (q.synonyms || []).join(";"),
         (q.unrelated || []).join(";"),
-        q.generateQuestion || "",
         q.note || "",
+        q.generateQuestion || "",
       ].map(escapeCell).join(","));
     });
     return lines.join("\r\n");
@@ -106,8 +108,8 @@ const CsvManager = (() => {
         antonym: q.antonym || "",
         synonyms: q.synonyms || [],
         unrelated: q.unrelated || [],
-        generateQuestion: q.generateQuestion || "",
         note: q.note || "",
+        generateQuestion: q.generateQuestion || "",
       })),
     };
     return JSON.stringify(payload, null, 2);

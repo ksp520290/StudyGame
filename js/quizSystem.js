@@ -111,34 +111,58 @@ const QuizSystem = (() => {
     return box;
   }
 
+  /**
+   * 【追加要望対応】並び替えUIの挙動変更：
+   *   - 解答欄（answerDisplay）に並べたカードも1枚ずつタップ可能なボタンとして表示し、
+   *     再タップすると解答欄から取り除き、元のプール内の位置（スロット）へ戻す。
+   *   - プール側は使用済みのカードを詰めて再配置せず、そのスロットを「空いたまま」
+   *     （見えないプレースホルダー）にして、他のカードの位置がズレないようにする。
+   */
   function renderReorderUI(item, onSubmit) {
     const submit = onSubmit || submitAnswer;
     const wrap = Utils.el("div", { class: "reorder-wrap" });
-    let picked = [];
-    const answerDisplay = Utils.el("div", { class: "reorder-answer-display" }, "");
+    let picked = []; // タップされた順に並ぶ、item.scrambled内のインデックス配列
+    const answerDisplay = Utils.el("div", { class: "reorder-answer-display" });
     const poolDisplay = Utils.el("div", { class: "reorder-pool" });
 
-    const refreshPool = () => {
-      poolDisplay.innerHTML = "";
-      item.scrambled.forEach((ch, idx) => {
-        if (picked.includes(idx)) return;
-        poolDisplay.appendChild(
+    const refresh = () => {
+      // 解答欄：選んだ順にチップを表示。タップで取り消し、元のプール位置へ戻す。
+      answerDisplay.innerHTML = "";
+      picked.forEach((idx) => {
+        answerDisplay.appendChild(
           Utils.el("button", {
-            class: "char-chip",
+            class: "char-chip char-chip-picked",
             onclick: () => {
-              picked.push(idx);
-              answerDisplay.textContent = picked.map((i) => item.scrambled[i]).join("");
-              refreshPool();
+              picked = picked.filter((i) => i !== idx);
+              refresh();
             },
-          }, ch)
+          }, item.scrambled[idx])
         );
       });
+
+      // プール：全スロットを常に同じ位置に表示し、使用済みスロットは詰めずに空けておく。
+      poolDisplay.innerHTML = "";
+      item.scrambled.forEach((ch, idx) => {
+        if (picked.includes(idx)) {
+          poolDisplay.appendChild(Utils.el("span", { class: "char-chip char-chip-empty" }, ""));
+        } else {
+          poolDisplay.appendChild(
+            Utils.el("button", {
+              class: "char-chip",
+              onclick: () => {
+                picked.push(idx);
+                refresh();
+              },
+            }, ch)
+          );
+        }
+      });
     };
-    refreshPool();
+    refresh();
 
     const resetBtn = Utils.el("button", {
       class: "btn btn-secondary",
-      onclick: () => { picked = []; answerDisplay.textContent = ""; refreshPool(); },
+      onclick: () => { picked = []; refresh(); },
     }, "やり直す");
 
     const submitBtn = Utils.el("button", {

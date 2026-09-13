@@ -75,6 +75,8 @@ const GameState = (() => {
       blueprints: {},
       lifetimeRetryCount: 0,
       gacha: { monthKey: null, loginCountThisMonth: 0, lastLoginDate: null, wasReturningLogin: false },
+      // 【追加要望対応】「今日の目標」（コミットメント・デバイス）。日付が変わると自動的に未設定に戻る。
+      dailyGoal: { date: null, target: 0, completed: 0 },
 
       // --- Phase5：地図 ---
       // mapSystem.jsが `map[genreId] = { virtualSize, stagePositions:{} }` を遅延生成する。
@@ -165,6 +167,24 @@ const GameState = (() => {
     return state;
   }
 
+  /**
+   * 【追加要望対応】1日1回ログインすれば、日付が変わるまで再ログイン不要にするための
+   * 事前チェック。init()を呼ばず（＝state本体を書き換えず）ストレージだけを覗いて、
+   * 保存済みデータの最終ログイン日に「今日」が含まれているかどうかを返す。
+   * 保存データが無い/壊れている場合はfalse（＝通常のログイン画面へ）を返す。
+   */
+  async function hasLoggedInToday() {
+    try {
+      const saved = await StorageEngine.get(STORAGE_KEY);
+      if (saved && saved.user && Array.isArray(saved.user.loginDates)) {
+        return saved.user.loginDates.includes(Utils.todayStr());
+      }
+    } catch (err) {
+      console.error("[gameState] 本日のログイン状態確認に失敗しました", err);
+    }
+    return false;
+  }
+
   function migrateIfNeeded() {
     if (!state.meta.version || state.meta.version < STATE_VERSION) {
       state.meta.version = STATE_VERSION;
@@ -185,6 +205,8 @@ const GameState = (() => {
       dictationSets: [],
       titles: [], titleDefs: [],
       questionMistakes: {}, starQuestions: [],
+      // 【追加要望対応】「今日の目標」。旧セーブデータには無いため補完する。
+      dailyGoal: { date: null, target: 0, completed: 0 },
     };
     for (const [key, value] of Object.entries(defaults)) {
       if (!(key in state)) state[key] = value;
@@ -317,8 +339,36 @@ const GameState = (() => {
     return state.user.loginDates.length;
   }
 
+  /**
+   * 【追加要望対応】行動経済学の「コミットメント・デバイス」機能：「今日の目標」。
+   * ユーザーが今日挑戦するクエスト数（1/3/5問など）を自分で決めて宣言し、
+   * 新規学習・復習のクエストを1つ完了するたびにカウントが進む。日付が変わると自動的に
+   * 未設定（null相当）に戻り、また新しく決め直す。
+   */
+  function setDailyGoal(target) {
+    update((s) => {
+      s.dailyGoal = { date: Utils.todayStr(), target, completed: 0 };
+    });
+  }
+
+  function getDailyGoal() {
+    const today = Utils.todayStr();
+    if (!state.dailyGoal || state.dailyGoal.date !== today) return null;
+    return state.dailyGoal;
+  }
+
+  /** クエスト（新規学習・復習とも）を1つ完了するたびに呼ぶ。今日の目標が未設定の日は何もしない。 */
+  function recordQuestCompletionForDailyGoal() {
+    update((s) => {
+      if (!s.dailyGoal) s.dailyGoal = { date: null, target: 0, completed: 0 };
+      if (s.dailyGoal.date !== Utils.todayStr()) return;
+      s.dailyGoal.completed += 1;
+    });
+  }
+
   return {
     init,
+    hasLoggedInToday,
     getState,
     update,
     persist,
@@ -326,5 +376,8 @@ const GameState = (() => {
     findStageContext,
     findQuestionById,
     recordQuestionMistake,
+    setDailyGoal,
+    getDailyGoal,
+    recordQuestCompletionForDailyGoal,
   };
 })();

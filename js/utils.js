@@ -90,7 +90,9 @@ const Utils = (() => {
     if (value === true) return "正答";
     if (value === false) return "誤答";
     if (value == null || value === "") return "（未回答）";
-    return String(value);
+    // 【追加要望対応】並び替え問題用のグループ化記号"*"が並び替え以外の表示に
+    // 紛れ込んだ場合の保険として、表示直前にも取り除く。
+    return String(value).split("*").join("");
   }
 
   /**

@@ -33,7 +33,10 @@ const ResultSystem = (() => {
 
     const stageJustCompleted = checkAndFinalizeStage(genreId, stageId);
 
-    renderSuccessScreen({ resultType, compassEarned, level, stageJustCompleted });
+    // 【追加要望対応】「今日の目標」（コミットメント・デバイス）のカウントを進める。
+    GameState.recordQuestCompletionForDailyGoal();
+
+    renderSuccessScreen({ resultType, compassEarned, level, stageJustCompleted, genreId, stageId });
   }
 
   function checkAndFinalizeStage(genreId, stageId) {
@@ -160,7 +163,7 @@ const ResultSystem = (() => {
     root.appendChild(wrap);
   }
 
-  function renderSuccessScreen({ resultType, compassEarned, level, stageJustCompleted }) {
+  function renderSuccessScreen({ resultType, compassEarned, level, stageJustCompleted, genreId, stageId }) {
     const root = document.getElementById("screen-container");
     root.innerHTML = "";
     const wrap = Utils.el("div", { class: "screen screen-inner result-screen pulse-once" });
@@ -180,7 +183,40 @@ const ResultSystem = (() => {
       ]));
     }
 
-    wrap.appendChild(Utils.el("button", { class: "btn btn-moss btn-block", onclick: () => Router.navigate("fogStageSelect") }, "次へ進む"));
+    // 【追加要望対応】「次へ進む」を押した際に毎回エリア選択画面まで戻ってしまうと
+    // 手間が多いため、Lv1・Lv2クリア時は「同じステージ」を選択した状態（レベル選択
+    // ポップアップが開いた状態）へ、Lv3クリア時は「次のステージ」を選択した状態へ
+    // 直接遷移する。あわせて「道の選択」「ステージ選択」ボタンも用意する。
+    const ctx = GameState.findStageContext(stageId);
+
+    const goNext = () => {
+      if (!ctx) { Router.navigate("fogStageSelect"); return; }
+      if (level === "lv3") {
+        const quests = ctx.questionSet.quests || [];
+        const idx = quests.findIndex((s) => s.id === stageId);
+        const nextStage = idx !== -1 ? quests[idx + 1] : null;
+        Router.navigate("areaMap", {
+          genreId: ctx.genre.id, questionSetId: ctx.questionSet.id,
+          openStageId: nextStage ? nextStage.id : null,
+        });
+      } else {
+        Router.navigate("areaMap", { genreId: ctx.genre.id, questionSetId: ctx.questionSet.id, openStageId: stageId });
+      }
+    };
+    const goQuestionSetSelect = () => {
+      if (ctx) Router.navigate("questionSetSelect", { genreId: ctx.genre.id });
+      else Router.navigate("fogStageSelect");
+    };
+    const goStageSelect = () => {
+      if (ctx) Router.navigate("areaMap", { genreId: ctx.genre.id, questionSetId: ctx.questionSet.id });
+      else Router.navigate("fogStageSelect");
+    };
+
+    wrap.appendChild(Utils.el("button", { class: "btn btn-moss btn-block", onclick: goNext }, "次へ進む"));
+    wrap.appendChild(Utils.el("div", { class: "quiz-choice-row" }, [
+      Utils.el("button", { class: "btn btn-secondary", onclick: goQuestionSetSelect }, "道の選択"),
+      Utils.el("button", { class: "btn btn-secondary", onclick: goStageSelect }, "ステージ選択"),
+    ]));
 
     root.appendChild(wrap);
   }

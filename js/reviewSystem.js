@@ -192,7 +192,8 @@ const ReviewSystem = (() => {
   }
 
   function buildTypingItems(questions) {
-    return questions.map((q) => ({ questionId: q.id, prompt: q.question, correctAnswer: q.answer, note: q.note || "" }));
+    // 【追加要望対応】並び替え問題用のグループ化記号"*"はタイピング復習では除去して表示・照合する。
+    return questions.map((q) => ({ questionId: q.id, prompt: q.question, correctAnswer: QuestionSystem.stripReorderMarkers(q.answer), note: q.note || "" }));
   }
 
   function renderCorrectionCreateReview(entry, ctx) {
@@ -349,6 +350,8 @@ const ReviewSystem = (() => {
     });
     const wonFragment = RewardSystem.rollFragment(entry.genreId, finalProb);
     RewardSystem.grantCompass(REVIEW_COMPLETION_COMPASS);
+    // 【追加要望対応】「今日の目標」のカウントを進める（復習クエストも1クエストとして数える）。
+    GameState.recordQuestCompletionForDailyGoal();
 
     GameState.update((state) => {
       const e = state.reviewSchedules.find((x) => x.id === entryId);
@@ -442,8 +445,10 @@ const ReviewSystem = (() => {
       box.appendChild(Utils.el("button", {
         class: "btn btn-primary btn-block",
         onclick: () => {
-          const isCorrect = input.value.trim() === question.answer;
-          completeStarReview(entry, isCorrect, question.question, question.answer, input.value.trim(), question.note);
+          // 【追加要望対応】並び替え問題用のグループ化記号"*"はここでも除去して照合する。
+          const correctAnswer = QuestionSystem.stripReorderMarkers(question.answer);
+          const isCorrect = input.value.trim() === correctAnswer;
+          completeStarReview(entry, isCorrect, question.question, correctAnswer, input.value.trim(), question.note);
         },
       }, "採点する"));
       wrap.appendChild(box);
@@ -453,6 +458,8 @@ const ReviewSystem = (() => {
   }
 
   function completeStarReview(entry, wasCorrect, prompt, correctAnswer, userAnswer, note) {
+    // 【追加要望対応】「今日の目標」のカウントを進める（☆フォルダ復習も1クエストとして数える）。
+    GameState.recordQuestCompletionForDailyGoal();
     const root = document.getElementById("screen-container");
     root.innerHTML = "";
     const wrap = Utils.el("div", { class: "screen screen-inner result-screen" });

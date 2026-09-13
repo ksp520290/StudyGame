@@ -6,8 +6,28 @@
 
 const App = (() => {
 
-  function boot() {
-    Router.navigate("title");
+  /**
+   * 【追加要望対応】ログインは1日1回でよく、日付が変わるまでは次回以降アプリを開いても
+   * タイトル画面（ログイン操作）を省略してそのままホーム画面へ進む。
+   * 「今日ログイン済みか」はGameState.hasLoggedInToday()でstate本体を書き換えずに確認し、
+   * 済んでいればGameState.init()（保存データの読み込み。ログイン日記録は日付が同じなので
+   * 何も変化しない）だけ行ってホームへ、そうでなければ従来通りタイトル画面へ進む。
+   * 毎回の再訪問で扉の演出（open.mp4）を見せると煩わしいため、この自動続行では省略する。
+   */
+  async function boot() {
+    let alreadyLoggedInToday = false;
+    try {
+      alreadyLoggedInToday = await GameState.hasLoggedInToday();
+    } catch (err) {
+      console.error("[app] 本日のログイン状態確認に失敗しました", err);
+    }
+
+    if (alreadyLoggedInToday) {
+      await GameState.init();
+      Router.navigate("home");
+    } else {
+      Router.navigate("title");
+    }
   }
 
   /**
