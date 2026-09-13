@@ -61,6 +61,8 @@
   2. rewardSystem / questionSystem … 他に依存しない計算ロジック（Phase2-4）
   3. importExport … gameStateに依存
   4. router … 画面切り替えの土台。以降のモジュールがregisterScreenで自分の画面を登録する
+  4.5. bgmSystem … 【追加要望対応】画面ごとのBGM再生。Router.navigate()から呼ばれるため
+      router.jsの直後に置く（呼び出しはtypeofガード付きなので順序が前後しても実害はない）。
   5. quizSystem … 学習ロジック本体（Phase2）。QuizSystem.startLevel / isLevelLocked / levelLabel /
      emptyStageProgress を地図画面（mapSystem）から再利用するため、mapSystemより先に読み込む。
   6. fogSystem … 霧の不透明度計算（Phase5）。純粋関数のみで他モジュールに依存しない。
@@ -90,6 +92,7 @@
 <script src="js/importExport.js"></script>
 <script src="js/csvManager.js"></script>
 <script src="js/router.js"></script>
+<script src="js/bgmSystem.js"></script>
 <script src="js/quizSystem.js"></script>
 <script src="js/fogSystem.js"></script>
 <script src="js/buildingSystem.js"></script>
