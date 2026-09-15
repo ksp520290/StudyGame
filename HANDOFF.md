@@ -1315,3 +1315,112 @@ CSV/JSONどちらも」とあったための対応という位置づけ）。
 - BGMを個別指定していない画面での「維持する」挙動が意図通りか確認したい。
 - 「今日の目標」の選択肢（1/3/5問固定）や、クエストの重み付け（全形式を等しく
   「1」とカウント）について、変更希望があれば次回対応する。
+
+## 16. 2026-09-15セッションでの追加実装（ver.6.0系 → 追加要望6件）
+
+GitHubリポジトリから取得したZIPを元に、Saito様からいただいた6件の要望に対応した。
+
+### ①縦画面でのopen/gacha動画表示サイズ・stage.mp3のm4a対応
+- `css/layout.css`：`#cutscene-video`のCSSを`max-width/max-height`（動画の実解像度が
+  小さいと画面中央にごく小さく表示されてしまう原因）から`width:100%; height:100%;
+  object-fit:contain;`に変更。open/gachaとも同じ`#cutscene-video`要素を共用している
+  （`js/app.js`の`playCutscene`参照）ため、この1箇所の修正で両画面とも直る。
+- `js/bgmSystem.js`：`playTrack()`を拡張し、`.mp3`の読み込みに失敗した場合（`<audio>`の
+  `error`イベント）、自動的に同名の`.m4a`へフォールバックするようにした
+  （`TRACK_EXTENSIONS = ["mp3", "m4a"]`）。`assets/audio/stage.m4a`をそのまま置いていても
+  再生される。他の3曲（home/explore/settings）は`.mp3`のままなので影響なし。
+
+### ②並び替え問題の解答欄（選択後）グリッド数
+- `css/quiz.css`：`.reorder-answer-display`をCSS Grid化し、ベース定義を16列
+  （横画面用）、`@media (orientation: portrait)`内で8列に上書き（縦画面用）。
+  プール側（`.reorder-pool`）の5列グリッドは変更していない（②の要望は「上の部分＝
+  解答欄」のみを指しているため）。
+
+### ③横画面での右サイドバー
+- 原因：`css/responsive.css`の`@media (min-width: 700px)`ブロックが
+  `#screen-container`に`max-width:720px; margin:0 auto;`を設定しており、これは
+  タブレット幅での中央寄せを意図したものだが、横画面（多くのスマホは横向きで
+  700px以上になる）でも適用されてしまい、ナビゲーション（`.main-nav`、
+  `flex:0 0 76px`で右側固定）がscreen-containerの右余白ぶんだけ画面右端から
+  離れて表示されていた。
+- 修正：`@media (orientation: landscape)`ブロック内で`#screen-container`の
+  `max-width`と`margin`を解除し、横画面では常に画面右端までscreen-containerが
+  広がる（＝ナビゲーションが画面右端に密着する）ようにした。
+  `@media (orientation: landscape) and (min-width: 1000px)`（探索ボタンのmax-width
+  調整のみ）は影響を受けないよう、そのブロックには手を加えていない。
+
+### ④問題ごとの正誤判定＋補足（note）表示
+- `js/questionSystem.js`：Lv1（正誤）/Lv2（四択）/Lv3（並び替え）すべての出題
+  オブジェクトに`answerText`（実際の正答テキスト）を追加した。Lv1は`shownAnswer`が
+  正誤どちらの語であってもあり得るため、本来の正答（`q.answer`）を別途保持する
+  必要があった。Lv2/Lv3は`correctAnswer`と同じ値。
+- `js/quizSystem.js`：
+  - `renderQuizScreen()`で、2問目以降は直前の回答（`session.userAnswers`の末尾）を
+    `renderPreviousFeedback()`に渡し、問題表示の下部に追加するようにした。
+  - `renderPreviousFeedback()`（新設）：「前問の補足」の見出し、正誤バッジ
+    （「正答」／「誤答」）、「正答 : 」＋正答値、そして`note`が存在する場合のみ
+    `<details>`（`.settings-accordion`と同じ見た目）でアコーディオン表示する
+    補足欄、を組み立てる。
+  - `submitAnswer()`の正誤トースト文言を「正解！」／「不正解…」から
+    「正答」／「誤答」に変更した（ご要望文中の表記に合わせた）。
+- `css/quiz.css`：`.prev-feedback-*`のスタイルを追加。
+- **対象範囲について**：この機能は新規学習（Lv1〜3、`quizSystem.js`の
+  `renderQuestionItem`を1問ずつ連続して出題する画面）にのみ適用した。☆フォルダ
+  （`starReviewPlay`）は単問出題で「前問」という概念が無いため対象外、1日後/3日後の
+  タイピング復習は元々全問を1画面に並べて一括採点する形式（`renderTypingReview`）
+  のため、この「1問ごとに次の問題へ進む」UIとは構造が異なり、今回は変更していない。
+  範囲を広げたい場合はご相談ください。
+
+### ⑤設定→認識改変「道」「キャラクター」間に「復習専用」タブを新設
+- `js/router.js`の`renderEditInfoGroup`のタブ配列に、`questionSet`（道）と
+  `character`（キャラクター）の間へ`reviewOnly`（復習専用）タブを追加し、
+  `renderReviewOnlyTab()`を新設した。
+- 画面の内容：対象エリア（ジャンル）の選択、道の名前／ステージ名（CSVに
+  `question_set`/`stage`列が無い場合のフォールバック名、かつ新規作成時にも使用）、
+  「何日前に学習しましたか？」（数値入力。0＝読み込んだ当日＝デフォルトの学習日）、
+  JSON/CSV形式選択、ファイル選択、「読み込んで復習スケジュールを作成する」ボタン。
+- 取り込み処理：既存の`CsvManager.parseQuestionsCSV`/`parseQuestionsJSON`で
+  パースし、`CsvManager.applyImportedQuestions(scope:"genre", ...)`で問題データを
+  ジャンル配下の道・ステージへ配置する（既存の「データ管理」タブと同じ仕組みを
+  再利用。道・ステージが無ければ自動作成される）。
+- `js/csvManager.js`の`applyImportedQuestions`を拡張し、戻り値に
+  `touchedStageIds`（今回の取り込みで実際に問題が配置されたステージIDの重複無し
+  配列）を追加した（既存の呼び出し元は戻り値を見ていない項目なので影響なし）。
+- `js/reviewSystem.js`に`scheduleInitialReviewsFromDate(genreId, stageId,
+  learnedDateStr)`を新設。「何日前に学習したか」から逆算した`learnedDateStr`を
+  起点に、通常の`scheduleInitialReviews`と同じ日数（1/3/7/14/30日後）で5段階の
+  復習日を生成する。Perfectスキップ等のボーナス処理は対象外（外部学習のため
+  判定できないので、素直に5段階すべてを生成する）。あわせて、そのステージの
+  `stageProgress`が未設定（＝新規学習を経由していない）場合に限り、Lv1〜3を
+  「クリア済み」として補完する（地図の霧・ステージ選択画面の表示を整合させる
+  ため。既に何らかの進捗がある場合は上書きしない）。
+  **重複登録防止**：対象ステージに既に`reviewSchedules`が1件でも存在する場合は
+  何もせず`false`を返す（同じ材料を誤って複数回取り込んでも復習が増殖しない）。
+- **仕様に明記が無く判断した点（要レビュー）**：
+  1. 「何日前の学習か」の入力は取り込み全体で1つ（行ごとに個別の日付は指定
+     できない）。CSVの各行に読み込み日が異なるケースまでは対応していない。
+     必要であれば複数回に分けて取り込むか、次回行ごとの対応を検討する。
+  2. 重複ID（`conflicts`）は、他の取り込みタブと違って解決UIを設けず、
+     常にスキップする単純な仕様にした（この機能は「新規に読み込む外部教材」を
+     想定しているため、既存データとの競合解決は本質的でないと判断）。
+  3. 取り込んだステージは新規学習（Lv1〜3）が「クリア済み」扱いになるため、
+     ホーム画面や地図上でも通常にクリアしたステージと見分けがつかない。
+     区別を可視化したい要望があれば、`stageProgress`に専用フラグ
+     （例：`sourceType:"external"`）を追加する形で対応できる。
+
+### ⑥正誤問題の選択肢文字色
+- `css/quiz.css`：`.quiz-shown-answer`（Lv1で「→ ○○」と表示される部分）の
+  `color`を`var(--color-amber-dark)`から`#4F80AB`に変更した。
+
+### 動作確認方法
+全JSファイルで`node --check`、全CSSファイルで中括弧の対応数チェックを実施し、
+いずれも問題なし。ブラウザでの実機能テスト（動画の縦画面表示・横画面サイドバーの
+見た目・「復習専用」タブからの実際の取り込みなど）はサンドボックスのネットワーク
+制限により未実施。次回、実機・実ブラウザでの見た目・動作確認を推奨
+（特に①の動画拡大表示が意図通りの見た目になっているか、⑤の取り込み〜復習画面への
+反映が一連で問題なく動くか）。
+
+### 次回セッションへの申し送り
+- ⑤の「行ごとに異なる学習日」への対応要否。
+- ⑤で取り込んだステージを通常クリアと区別する表示が必要か。
+- ④の適用範囲（1日後/3日後タイピング復習・☆フォルダへの拡大要否）。
