@@ -81,7 +81,42 @@ const QuizSystem = (() => {
       `問題 ${session.index + 1} / ${session.items.length}`));
 
     wrap.appendChild(renderQuestionItem(item));
+
+    // 【追加要望対応】1問目以降、直前に解いた問題の正誤・正答・補足（note）を
+    // 問題表示画面の下部に表示する。
+    if (session.index > 0) {
+      const prevAnswer = session.userAnswers[session.userAnswers.length - 1];
+      if (prevAnswer) wrap.appendChild(renderPreviousFeedback(prevAnswer));
+    }
+
     root.appendChild(wrap);
+  }
+
+  /**
+   * 【追加要望対応】前問の正誤・正答・補足情報（CSVのnote列）を表示するパネル。
+   * 「正答 : 」の横に正答の選択肢を表示し、それ以外の補足情報はアコーディオンで開閉できる。
+   */
+  function renderPreviousFeedback(prevAnswer) {
+    const item = prevAnswer.item;
+    const wrap = Utils.el("div", { class: "panel prev-feedback-panel" });
+    wrap.appendChild(Utils.el("h4", { class: "prev-feedback-title" }, "前問の補足"));
+    wrap.appendChild(Utils.el("div", {
+      class: "prev-feedback-status " + (prevAnswer.isCorrect ? "is-correct" : "is-wrong"),
+    }, prevAnswer.isCorrect ? "正答" : "誤答"));
+    wrap.appendChild(Utils.el("div", { class: "prev-feedback-answer" }, [
+      Utils.el("span", { class: "prev-feedback-answer-label" }, "正答 : "),
+      Utils.el("span", { class: "prev-feedback-answer-value" },
+        Utils.formatAnswerValue(item.answerText != null ? item.answerText : item.correctAnswer)),
+    ]));
+
+    const note = item.note;
+    if (note && String(note).trim()) {
+      const details = Utils.el("details", { class: "settings-accordion prev-feedback-note-accordion" });
+      details.appendChild(Utils.el("summary", {}, "補足"));
+      details.appendChild(Utils.el("div", { class: "prev-feedback-note-content" }, note));
+      wrap.appendChild(details);
+    }
+    return wrap;
   }
 
   function renderQuestionItem(item, onSubmit) {
@@ -187,7 +222,8 @@ const QuizSystem = (() => {
       if (addedToStar) Utils.showToast("この問題は☆フォルダに入りました（明日また出題されます）", "info");
     }
 
-    Utils.showToast(isCorrect ? "正解！" : "不正解…", isCorrect ? "success" : "error");
+    // 【追加要望対応】正誤メッセージの表記を「正答」「誤答」に統一。
+    Utils.showToast(isCorrect ? "正答" : "誤答", isCorrect ? "success" : "error");
 
     if (session.index < session.items.length - 1) {
       session.index += 1;

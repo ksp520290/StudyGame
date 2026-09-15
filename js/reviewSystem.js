@@ -41,6 +41,47 @@ const ReviewSystem = (() => {
     });
   }
 
+  /**
+   * 【追加要望対応】「復習専用」機能：外部（本・プリント等）で学習済みの内容を取り込み、
+   * 新規学習（Lv1〜3）を経由せずに復習スケジュールだけを生成する。
+   * learnedDateStrを起点に、通常のscheduleInitialReviewsと同じ日数（1/3/7/14/30日後）で
+   * 各復習日を逆算する。Perfectスキップ等のボーナスは対象外（外部学習のため判定不能なので、
+   * 素直に5段階すべてを生成する）。
+   * 既にそのステージにreviewSchedulesが存在する場合は、重複登録を避けるため何もしない。
+   * @returns {boolean} 実際に登録したらtrue、既存データがあり登録しなかったらfalse
+   */
+  function scheduleInitialReviewsFromDate(genreId, stageId, learnedDateStr) {
+    const alreadyScheduled = GameState.getState().reviewSchedules.some((e) => e.stageId === stageId);
+    if (alreadyScheduled) return false;
+
+    GameState.update((state) => {
+      // 新規学習（Lv1〜3）を経由していないため、ステージ進捗も「クリア済み」として
+      // 補完しておく（地図の霧やステージ選択の表示を整合させるため）。既に何らかの
+      // 進捗が記録されている場合は上書きしない。
+      if (!state.stageProgress[stageId] || state.stageProgress[stageId].result === "none") {
+        state.stageProgress[stageId] = {
+          levels: { lv1: "cleared", lv2: "cleared", lv3: "cleared" },
+          firstAttemptFailed: { lv1: false, lv2: false, lv3: false },
+          levelResults: { lv1: "clear", lv2: "clear", lv3: "clear" },
+          result: "clear",
+          completedAt: learnedDateStr,
+        };
+      }
+
+      const entries = REVIEW_STAGE_ORDER.map((reviewStage) => ({
+        id: Utils.generateId("review"),
+        genreId, stageId, reviewStage,
+        scheduledDate: Utils.addDays(learnedDateStr, REVIEW_STAGE_DAYS[reviewStage]),
+        status: "pending",
+        skippedProbabilityCarry: 0,
+        perfectBonusNext: 0,
+        correctionQuestion: null,
+      }));
+      state.reviewSchedules.push(...entries);
+    });
+    return true;
+  }
+
   function getCategorizedReviews() {
     const state = GameState.getState();
     const today = Utils.todayStr();
@@ -512,5 +553,5 @@ const ReviewSystem = (() => {
   Router.registerScreen("reviewPlay", renderReviewPlayScreen);
   Router.registerScreen("starReviewPlay", renderStarReviewPlayScreen);
 
-  return { scheduleInitialReviews, getCategorizedReviews, getStarQuestionsDue };
+  return { scheduleInitialReviews, scheduleInitialReviewsFromDate, getCategorizedReviews, getStarQuestionsDue };
 })();

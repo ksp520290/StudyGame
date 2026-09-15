@@ -1060,6 +1060,7 @@ const Router = (() => {
     const tabs = [
       { key: "genre", label: "ジャンル", render: (c) => renderEditGenreTab(c, GameState.getState()) },
       { key: "questionSet", label: "道", render: (c) => renderEditQuestionSetTab(c, GameState.getState()) },
+      { key: "reviewOnly", label: "復習専用", render: (c) => renderReviewOnlyTab(c, GameState.getState()) },
       { key: "character", label: "キャラクター", render: (c) => renderEditCharacterTab(c, GameState.getState()) },
       { key: "building", label: "建築物", render: (c) => renderEditBuildingTab(c, GameState.getState()) },
       { key: "title", label: "称号", render: (c) => renderEditTitleTab(c, GameState.getState()) },
@@ -1069,6 +1070,120 @@ const Router = (() => {
     ]);
     group.appendChild(buildTabPanel(tabs));
     return group;
+  }
+
+  /**
+   * 【追加要望対応】「復習専用」タブ：外部（本・プリント等）で学習した内容を読み込み、
+   * 新規学習（Lv1〜3）を経由せず復習（知の探究）だけを行いたい場合の取り込み画面。
+   * 読み込んだ日をデフォルトの学習日とし、「何日前に学習したか」を入力すると、
+   * その日を起点に1日後/3日後/1週間後/2週間後/1か月後の復習スケジュールを生成する。
+   */
+  function renderReviewOnlyTab(container, state) {
+    container.appendChild(Utils.el("p", { class: "explore-desc" },
+      "外部（本・プリントなど）で学習した内容を読み込み、復習（知の探究）だけをこのアプリで行うための機能です。取り込んだ問題は新規学習（Lv1〜3）が完了済みの扱いになり、指定した学習日を起点に復習スケジュールだけが生成されます。"));
+
+    if (state.genres.length === 0) {
+      container.appendChild(Utils.el("p", {}, "先に「ジャンル」タブでジャンルを追加してください。"));
+      return;
+    }
+
+    const genreSelect = Utils.el("select", { class: "review-typing-input" },
+      state.genres.map((g) => Utils.el("option", { value: g.id }, g.title || g.name)));
+    container.appendChild(Utils.el("label", { class: "diary-field-label" }, "対象エリア"));
+    container.appendChild(genreSelect);
+
+    const qsInput = Utils.el("input", { type: "text", class: "review-typing-input", placeholder: "道の名前（各行にquestion_set列が無い場合や新規作成時に使用。既存と同名なら追加取り込み）" });
+    container.appendChild(Utils.el("label", { class: "diary-field-label" }, "道の名前"));
+    container.appendChild(qsInput);
+
+    const stageInput = Utils.el("input", { type: "text", class: "review-typing-input", placeholder: "ステージ名（各行にstage列が無い場合や新規作成時に使用）" });
+    container.appendChild(Utils.el("label", { class: "diary-field-label" }, "ステージ名"));
+    container.appendChild(stageInput);
+
+    const daysAgoInput = Utils.el("input", { type: "number", min: "0", step: "1", value: "0", class: "review-typing-input" });
+    container.appendChild(Utils.el("label", { class: "diary-field-label" },
+      "何日前に学習しましたか？（読み込んだ日がデフォルトの学習日です。0のままなら今日学習したものとして扱います）"));
+    container.appendChild(daysAgoInput);
+
+    container.appendChild(Utils.el("h4", { style: "margin-top:16px;" }, "読み込み"));
+    const importFmt = buildFormatSelector("json");
+    container.appendChild(importFmt.wrap);
+
+    const fileInput = Utils.el("input", { type: "file", accept: ".json,.csv,application/json,text/csv", style: "margin-top:6px; width:100%;" });
+    container.appendChild(fileInput);
+
+    const resultBox = Utils.el("div", { class: "settings-row", style: "display:none; flex-direction:column; align-items:flex-start; white-space:pre-wrap; font-size:13px;" });
+
+    container.appendChild(Utils.el("button", {
+      class: "btn btn-primary btn-block", style: "margin-top:8px;",
+      onclick: () => {
+        const file = fileInput.files[0];
+        if (!file) { Utils.showToast("ファイルを選択してください", "error"); return; }
+        const daysAgo = Math.max(0, parseInt(daysAgoInput.value, 10) || 0);
+        const learnedDate = Utils.addDays(Utils.todayStr(), -daysAgo);
+
+        const reader = new FileReader();
+        reader.onload = () => {
+          const text = reader.result;
+          const currentState = GameState.getState();
+          const existingIds = CsvManager.collectAllQuestionIds(currentState);
+          const parsed = importFmt.getFormat() === "json"
+            ? CsvManager.parseQuestionsJSON(text, existingIds)
+            : CsvManager.parseQuestionsCSV(text, existingIds);
+          const { questions, conflicts, errors, warnings } = parsed;
+
+          resultBox.style.display = "flex";
+          const lines = [];
+          if (errors.length > 0) {
+            lines.push(`❌ エラー ${errors.length}件（該当行はスキップされました）`);
+            errors.slice(0, 10).forEach((e) => lines.push("  - " + e));
+            if (errors.length > 10) lines.push(`  ...ほか${errors.length - 10}件`);
+          }
+          if (warnings.length > 0) {
+            lines.push(`⚠ 警告 ${warnings.length}件`);
+            warnings.slice(0, 5).forEach((w) => lines.push("  - " + w));
+          }
+
+          if (questions.length > 0) {
+            let touchedStageIds = [];
+            GameState.update((s) => {
+              const applyResult = CsvManager.applyImportedQuestions(s, questions, {
+                scope: "genre",
+                genreId: genreSelect.value,
+                fallbackQuestionSetName: qsInput.value.trim(),
+                fallbackStageName: stageInput.value.trim(),
+              });
+              touchedStageIds = applyResult.touchedStageIds || [];
+              lines.push(`✅ 新規取り込み: ${applyResult.imported}問（新規の道 ${applyResult.createdQuestionSets}件・新規ステージ ${applyResult.createdStages}件）`);
+              if (applyResult.skipped.length > 0) {
+                lines.push(`⚠ 配置できず除外: ${applyResult.skipped.length}件`);
+                applyResult.skipped.slice(0, 5).forEach((s2) => lines.push("  - " + s2));
+              }
+            });
+
+            let scheduledCount = 0, skippedCount = 0;
+            touchedStageIds.forEach((stageId) => {
+              const ok = ReviewSystem.scheduleInitialReviewsFromDate(genreSelect.value, stageId, learnedDate);
+              if (ok) scheduledCount++; else skippedCount++;
+            });
+            lines.push(`🗓 復習スケジュールを生成: ${scheduledCount}ステージ分（学習日：${learnedDate}）`
+              + (skippedCount > 0 ? `（既に復習データがあった${skippedCount}ステージ分はスキップ）` : ""));
+          }
+
+          if (conflicts.length > 0) {
+            lines.push(`⚠ 重複ID: ${conflicts.length}件（この機能は新規データのみを扱うため、既存と同じIDの行はスキップされました）`);
+          }
+          if (conflicts.length === 0 && questions.length === 0) {
+            lines.push("取り込める問題がありませんでした。");
+          }
+
+          resultBox.textContent = lines.join("\n");
+        };
+        reader.readAsText(file);
+      },
+    }, "読み込んで復習スケジュールを作成する"));
+
+    container.appendChild(resultBox);
   }
 
   function renderEditGenreTab(container, state) {

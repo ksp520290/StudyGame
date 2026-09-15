@@ -42,23 +42,38 @@ const BgmSystem = (() => {
     return audioEl;
   }
 
+  // 【追加要望対応】ファイルサイズの都合でmp3の代わりにm4a（同名・別拡張子）として
+  // 置かれている場合があるため、mp3が読み込めなければ自動的にm4aへフォールバックする。
+  const TRACK_EXTENSIONS = ["mp3", "m4a"];
+
   function playTrack(trackName) {
     if (currentTrack === trackName) return; // 同じ曲がすでに流れている場合は何もしない
     const el = ensureAudioEl();
     currentTrack = trackName;
-    el.src = `assets/audio/${trackName}.mp3`;
-    const playPromise = el.play();
-    if (playPromise && typeof playPromise.catch === "function") {
-      playPromise.catch(() => {
-        // ブラウザの自動再生制限でブロックされた場合、次のユーザー操作（タップ/クリック）で再試行する。
-        // ファイル自体が存在しない場合もここに来るが、アプリの動作には影響させない。
-        const retry = () => {
-          el.play().catch(() => {});
-          document.removeEventListener("click", retry);
-        };
-        document.addEventListener("click", retry, { once: true });
-      });
-    }
+    let extIndex = 0;
+
+    const attemptPlay = () => {
+      el.src = `assets/audio/${trackName}.${TRACK_EXTENSIONS[extIndex]}`;
+      const playPromise = el.play();
+      if (playPromise && typeof playPromise.catch === "function") {
+        playPromise.catch(() => {
+          // ブラウザの自動再生制限でブロックされた場合、次のユーザー操作（タップ/クリック）で再試行する。
+          // ファイル自体が存在しない場合もここに来るが、アプリの動作には影響させない。
+          const retry = () => {
+            el.play().catch(() => {});
+            document.removeEventListener("click", retry);
+          };
+          document.addEventListener("click", retry, { once: true });
+        });
+      }
+    };
+
+    el.onerror = () => {
+      extIndex += 1;
+      if (extIndex < TRACK_EXTENSIONS.length && currentTrack === trackName) attemptPlay();
+    };
+
+    attemptPlay();
   }
 
   function stop() {

@@ -378,6 +378,9 @@ const CsvManager = (() => {
   function applyImportedQuestions(mutableState, questions, opts) {
     const skipped = [];
     let imported = 0, createdGenres = 0, createdQuestionSets = 0, createdStages = 0;
+    // 【追加要望対応】「復習専用」取り込みなど、取り込み結果として実際に問題が
+    // 配置されたステージIDを呼び出し側へ返すための集計（重複無し）。
+    const touchedStageIdSet = new Set();
 
     questions.forEach((q) => {
       // --- ジャンルの解決 ---
@@ -429,10 +432,14 @@ const CsvManager = (() => {
       }
 
       stage.questions.push(cleanQuestionFields(q));
+      touchedStageIdSet.add(stage.id);
       imported++;
     });
 
-    return { imported, skipped, createdGenres, createdQuestionSets, createdStages };
+    return {
+      imported, skipped, createdGenres, createdQuestionSets, createdStages,
+      touchedStageIds: [...touchedStageIdSet],
+    };
   }
 
   /**

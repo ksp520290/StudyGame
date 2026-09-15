@@ -19,6 +19,9 @@ const QuestionSystem = (() => {
         prompt: q.question,
         shownAnswer,
         correctAnswer: showCorrect,
+        // 【追加要望対応】表示された語(shownAnswer)が正誤どちらであっても、
+        // 「前問の補足」欄で実際の正答を示せるよう、本来の正答テキストを別途保持する。
+        answerText: stripReorderMarkers(q.answer),
         note: q.note || "",
       };
     });
@@ -53,6 +56,7 @@ const QuestionSystem = (() => {
         prompt: q.question,
         choices: Utils.shuffle([...choices]).slice(0, 4),
         correctAnswer: stripReorderMarkers(q.answer),
+        answerText: stripReorderMarkers(q.answer),
         note: q.note || "",
       };
     });
@@ -112,6 +116,7 @@ const QuestionSystem = (() => {
         prompt: q.question,
         scrambled: shuffled,
         correctAnswer: tokens.join(""),
+        answerText: tokens.join(""),
         note: q.note || "",
       };
     });
