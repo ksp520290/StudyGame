@@ -358,6 +358,43 @@ const CsvManager = (() => {
         });
       });
     });
+    // 【追加要望対応】1週間後の復習で作成された「訂正問題」（仕様13章）は、通常の
+    // 問題バンク（state.genres配下）ではなく state.reviewSchedules 側に保存されているため、
+    // 上記のループだけでは全問題／エリア別／道別／ステージ別の出力に含まれなかった。
+    // ここで合流させ、他の問題データと同様にエクスポート対象に含める。
+    result.push(...buildCorrectionQuestionEntries(state, filter));
+    return result;
+  }
+
+  /**
+   * 【追加要望対応】復習（知の探究・1週間後「訂正問題作成」）でユーザーが作成した
+   * 訂正問題を、データ管理画面の出力形式（question/answer/note等）に変換して返す。
+   * 通常の問題データと同じCSV/JSON列にマッピングする：
+   *   question ＝ 元のお題＋誤答例、answer ＝ 訂正内容、note ＝ 解説。
+   */
+  function buildCorrectionQuestionEntries(state, filter = {}) {
+    const result = [];
+    (state.reviewSchedules || []).forEach((entry) => {
+      if (entry.reviewStage !== "1week" || !entry.correctionQuestion) return;
+      if (filter.genreId && entry.genreId !== filter.genreId) return;
+      if (filter.stageId && entry.stageId !== filter.stageId) return;
+      const ctx = (typeof GameState !== "undefined") ? GameState.findStageContext(entry.stageId) : null;
+      if (filter.questionSetId && (!ctx || ctx.questionSet.id !== filter.questionSetId)) return;
+      const cq = entry.correctionQuestion;
+      result.push({
+        id: "correction_" + entry.id,
+        genre: entry.genreId,
+        questionSetName: ctx ? ctx.questionSet.name : "",
+        stageName: ctx ? ctx.stage.name : "",
+        question: `${cq.question}（誤答例: ${cq.wrongChoice} の訂正問題）`,
+        answer: cq.correction,
+        antonym: "",
+        synonyms: [],
+        unrelated: [],
+        note: cq.explanation || "",
+        generateQuestion: "",
+      });
+    });
     return result;
   }
 

@@ -98,7 +98,29 @@ const App = (() => {
     });
   }
 
+  /**
+   * 【追加要望対応】ホーム画面「終了」ボタン用。終了演出（close.mp4／縦画面はclose_mobile.mp4）
+   * を再生した後、タブを閉じることを試み（多くのブラウザではスクリプトで開いていない
+   * タブは閉じられないため失敗することがある）、閉じられなかった場合は画面を暗転
+   * させたままにする（=ブラックアウトし、以後の操作を受け付けない終了状態にする）。
+   */
+  async function exitWithCutscene() {
+    await playCutscene("close", "またあした");
+    try { window.close(); } catch (err) { /* ブラウザの制限で閉じられない場合がある */ }
+    setTimeout(showBlackout, 250);
+  }
+
+  function showBlackout() {
+    const overlay = document.getElementById("video-overlay");
+    const video = document.getElementById("cutscene-video");
+    const fallback = document.getElementById("cutscene-fallback");
+    video.pause();
+    video.classList.add("hidden");
+    fallback.classList.add("hidden");
+    overlay.classList.remove("hidden");
+  }
+
   document.addEventListener("DOMContentLoaded", boot);
 
-  return { playCutscene };
+  return { playCutscene, exitWithCutscene };
 })();

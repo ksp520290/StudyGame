@@ -54,11 +54,11 @@ const Router = (() => {
   }
 
   /**
-   * 【追加要望対応】待ち受け画面の「ログイン」は、デバイス上のバックアップファイル
-   * （終了ボタンで保存したJSON等）を選択して読み込む方式にした。
-   * この端末にすでに保存データがある場合向けに、下に小さく
-   * 「この端末の保存データで続ける」も用意し、初回利用や
-   * バックアップファイルが手元に無い場合の入り口を確保している。
+   * 【追加要望対応】待ち受け画面の再構成。
+   * - 主ボタンは「この端末の保存データで続ける」に変更（初回起動・通常再訪問はこちらを想定）。
+   * - バックアップファイル（.json）からのログインは、画面右上の「バックアップ」ボタンへ移動。
+   * - 主ボタンの下に「チュートリアル」ボタンを新設。チュートリアルモードは、この
+   *   ボタンを押した場合にのみ起動する（自動起動はしない）。
    */
   function renderTitleScreen(root) {
     const backupFileInput = Utils.el("input", { type: "file", accept: ".json,application/json", style: "display:none;" });
@@ -70,16 +70,26 @@ const Router = (() => {
 
     root.appendChild(
       Utils.el("div", { class: "screen-title" }, [
+        Utils.el("div", { class: "title-backup-corner" }, [
+          Utils.el("button", {
+            class: "btn btn-secondary", "aria-label": "バックアップファイルからログイン",
+            onclick: () => backupFileInput.click(),
+          }, "バックアップ"),
+          Utils.el("p", { class: "title-sub" }, "現在のデバイス内のバックアップファイル（.json）を選択します"),
+        ]),
         Utils.el("div", {}, [
           Utils.el("h1", { class: "title-heading" }, "霧晴れの開拓譚"),
           Utils.el("p", { class: "title-sub" }, "学びが、まだ見ぬ世界の霧を晴らす。"),
         ]),
-        Utils.el("button", { class: "btn btn-primary", onclick: () => backupFileInput.click() }, "ログイン"),
-        Utils.el("p", { class: "title-sub", style: "font-size:12px; margin-top:4px;" }, "デバイス内のバックアップファイル（.json）を選択します"),
         Utils.el("button", {
-          class: "btn btn-secondary btn-block", style: "margin-top:16px;",
+          class: "btn btn-primary btn-block",
           onclick: handleContinueOnThisDeviceClick,
         }, "この端末の保存データで続ける"),
+        // 【追加要望対応】チュートリアルボタン。このボタンを押した場合にのみチュートリアルモードを起動する。
+        Utils.el("button", {
+          class: "btn btn-secondary btn-block", style: "margin-top:4px;",
+          onclick: () => { if (typeof TutorialSystem !== "undefined") TutorialSystem.start(); },
+        }, "チュートリアル"),
         backupFileInput,
       ])
     );
@@ -130,9 +140,14 @@ const Router = (() => {
         ]),
         Utils.el("button", {
           class: "icon-btn", "aria-label": "保存して終了",
-          // 【追加要望対応】終了ボタン：まずGameState.persist()でDB（IndexedDB/LocalStorage）への
-          // 保存を明示的に確定させてから、従来通りバックアップJSONも書き出す。
-          onclick: () => { GameState.persist().then(() => ImportExport.exportBackup()); },
+          // 【追加要望対応】終了ボタン：DBへの保存確定→バックアップJSON書き出し→
+          // 終了演出（close.mp4/close_mobile.mp4）→タブを閉じる（不可ならブラックアウト）。
+          onclick: () => {
+            GameState.persist().then(() => {
+              ImportExport.exportBackup();
+              App.exitWithCutscene();
+            });
+          },
         }, "終了"),
       ])
     );

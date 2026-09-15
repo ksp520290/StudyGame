@@ -88,9 +88,10 @@ const ResultSystem = (() => {
     wrap.appendChild(list);
 
     // 【追加要望対応】今回出題された問題と正答をフラッシュカード形式で確認できるボタン。
-    // 「再挑戦」ボタンの上に配置する。
+    // 「再挑戦」ボタンの上に配置する。下のボタン群との間にmarginを設ける。
     wrap.appendChild(Utils.el("button", {
       class: "btn btn-secondary btn-block",
+      style: "margin-bottom: 20px;",
       onclick: () => renderFlashcardScreen(userAnswers, () => renderFailScreen({ stageId, userAnswers, onRetry })),
     }, "カード"));
 
@@ -133,25 +134,62 @@ const ResultSystem = (() => {
       onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { showingAnswer = !showingAnswer; render(); } },
     });
 
+    /**
+     * 【追加要望対応】「正答」面に、その問題で実際に使われた選択肢一覧を表示する。
+     * Lv2（四択）: item.choices を、正答をハイライトして一覧表示。
+     * Lv3（並び替え）: item.scrambled（バラバラのトークン）を、正答の並び順で一覧表示。
+     * Lv1（正誤）や上記が無い形式: 従来通り正答の値のみを表示する。
+     */
+    function buildAnswerFaceContent(item) {
+      const content = Utils.el("div", {}, []);
+      content.appendChild(Utils.el("div", { class: "flashcard-face-content" }, Utils.formatAnswerValue(item.correctAnswer)));
+
+      if (item.type === "multiple_choice" && Array.isArray(item.choices) && item.choices.length > 0) {
+        const list = Utils.el("div", { class: "flashcard-choices-list" },
+          item.choices.map((choice) => Utils.el("span", {
+            class: "flashcard-choice-chip" + (choice === item.answerText ? " is-correct-choice" : ""),
+          }, choice)));
+        content.appendChild(list);
+      } else if (item.type === "reorder" && Array.isArray(item.scrambled) && item.scrambled.length > 0) {
+        const list = Utils.el("div", { class: "flashcard-choices-list" },
+          item.scrambled.map((token) => Utils.el("span", { class: "flashcard-choice-chip is-correct-choice" }, token)));
+        content.appendChild(list);
+      }
+      return content;
+    }
+
     function render() {
       const a = userAnswers[index];
       counter.textContent = `${index + 1} / ${userAnswers.length}`;
       card.innerHTML = "";
       card.classList.toggle("is-flipped", showingAnswer);
-      card.appendChild(Utils.el("div", { class: "flashcard-face-label" }, showingAnswer ? "正答" : "問題"));
-      card.appendChild(Utils.el("div", { class: "flashcard-face-content" },
-        showingAnswer ? Utils.formatAnswerValue(a.item.correctAnswer) : a.item.prompt));
+      card.appendChild(Utils.el("div", {
+        class: "flashcard-face-label" + (!showingAnswer ? " is-question-label" : ""),
+      }, showingAnswer ? "正答" : "問題"));
+      if (showingAnswer) {
+        card.appendChild(buildAnswerFaceContent(a.item));
+      } else {
+        card.appendChild(Utils.el("div", { class: "flashcard-face-content" }, a.item.prompt));
+      }
     }
 
+    function goPrev() { index = (index - 1 + userAnswers.length) % userAnswers.length; showingAnswer = false; render(); }
+    function goNext() { index = (index + 1) % userAnswers.length; showingAnswer = false; render(); }
+
+    // 【追加要望対応】横方向のスライド（スワイプ）でもカードを切り替えられるようにする。
+    let touchStartX = null;
+    card.addEventListener("touchstart", (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
+    card.addEventListener("touchend", (e) => {
+      if (touchStartX === null) return;
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      touchStartX = null;
+      if (Math.abs(dx) < 40) return; // タップ扱い（クリックイベントに任せる）
+      if (dx < 0) goNext(); else goPrev();
+    }, { passive: true });
+
     const navRow = Utils.el("div", { class: "quiz-choice-row" }, [
-      Utils.el("button", {
-        class: "btn btn-secondary",
-        onclick: () => { index = (index - 1 + userAnswers.length) % userAnswers.length; showingAnswer = false; render(); },
-      }, "← 前へ"),
-      Utils.el("button", {
-        class: "btn btn-secondary",
-        onclick: () => { index = (index + 1) % userAnswers.length; showingAnswer = false; render(); },
-      }, "次へ →"),
+      Utils.el("button", { class: "btn btn-secondary", onclick: goPrev }, "← 前へ"),
+      Utils.el("button", { class: "btn btn-secondary", onclick: goNext }, "次へ →"),
     ]);
 
     wrap.appendChild(counter);
