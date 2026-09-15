@@ -22,7 +22,7 @@
   text-align: center;
   margin-bottom: var(--spacing-3);
   /* 【追加要望対応】文字が見にくいとのご指摘により指定色に変更 */
-  color: #4F80AB;
+  color: #000080;
 }
 
 .quiz-choice-row {
@@ -186,11 +186,37 @@
   color: var(--color-amber-dark);
   letter-spacing: 0.1em;
 }
+/* 【追加要望対応】「問題」面のラベルのみ指定色にする */
+.flashcard-face-label.is-question-label {
+  color: #000080;
+}
 .flashcard-face-content {
   font-size: var(--fs-lg);
   font-weight: 700;
   color: var(--color-ink);
   white-space: pre-wrap;
+}
+/* 【追加要望対応】「正答」面に表示する選択肢一覧（Lv2四択・Lv3並び替え用） */
+.flashcard-choices-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  justify-content: center;
+  margin-top: var(--spacing-2);
+}
+.flashcard-choice-chip {
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-ink-soft);
+  font-size: var(--fs-sm);
+  background: transparent;
+  color: var(--color-ink);
+}
+.flashcard-choice-chip.is-correct-choice {
+  background: var(--color-moss);
+  color: #fff;
+  border-color: transparent;
+  font-weight: 700;
 }
 
 .reward-panel .reward-line {

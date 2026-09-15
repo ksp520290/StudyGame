@@ -109,19 +109,9 @@ input:focus, textarea:focus, select:focus {
     margin: 0;
   }
 
-  /* ホーム画面：「今日のおすすめ行動」と「自分の世界の様子」を横並びに */
-  .home-panels-row {
-    flex-direction: row;
-    align-items: stretch;
-    gap: var(--spacing-3);
-  }
-  .home-panels-row > .recommend-box {
-    flex: 1 1 50%;
-    margin-bottom: 0;
-  }
-  .home-panels-row > .panel {
-    flex: 1 1 50%;
-  }
+  /* 【追加要望対応】「今日のおすすめ行動」と「世界の様子」は、画面の向きに関わらず
+     常に縦に並べる（以前は横画面時のみ横並びにしていたが、要望によりこの上書きを廃止）。
+     .home-panels-row の既定（style.css）が column なので、ここでは何も上書きしない。 */
 
   /* 探索画面：4つのボタンはレイアウトそのままにサイズだけ大きくする */
   .explore-list {
