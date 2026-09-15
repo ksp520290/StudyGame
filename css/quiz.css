@@ -21,7 +21,8 @@
   font-family: var(--font-display);
   text-align: center;
   margin-bottom: var(--spacing-3);
-  color: var(--color-amber-dark);
+  /* 【追加要望対応】文字が見にくいとのご指摘により指定色に変更 */
+  color: #4F80AB;
 }
 
 .quiz-choice-row {
@@ -40,7 +41,12 @@
   min-height: 52px;
 }
 
+/* 【追加要望対応】解答欄（選択後に並ぶ上部エリア）を、横画面では16列・縦画面では8列の
+   グリッドで固定表示する（下の@media (orientation: portrait)で8列に上書き）。 */
 .reorder-answer-display {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  gap: 4px;
   min-height: 40px;
   border-bottom: 2px solid var(--color-ink-soft);
   font-size: var(--fs-lg);
@@ -89,6 +95,10 @@
    1行に最大5個まで並ぶ大きさへ拡大する（それ以上は自動的に次の行へ折り返す）。
    横画面は今までどおりの小さめのシステムを流用する（上のベース定義のまま変更しない）。 */
 @media (orientation: portrait) {
+  /* 【追加要望対応】縦画面の解答欄は8列固定（横画面は上のベース定義の16列のまま）。 */
+  .reorder-answer-display {
+    grid-template-columns: repeat(8, 1fr);
+  }
   .reorder-pool {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
@@ -110,6 +120,39 @@
     padding: 4px;
   }
 }
+/* --- 【追加要望対応】問題画面下部「前問の補足」パネル --- */
+.prev-feedback-panel {
+  margin-top: var(--spacing-3);
+}
+.prev-feedback-title {
+  font-size: var(--fs-sm);
+  color: var(--color-ink-soft);
+  margin: 0 0 var(--spacing-2);
+}
+.prev-feedback-status {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-md);
+  padding: 2px 10px;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--spacing-2);
+}
+.prev-feedback-status.is-correct { background: rgba(111,143,92,0.18); color: var(--color-moss-dark); }
+.prev-feedback-status.is-wrong { background: rgba(164,80,63,0.18); color: var(--color-danger); }
+.prev-feedback-answer {
+  font-size: var(--fs-base);
+  margin-bottom: var(--spacing-2);
+}
+.prev-feedback-answer-label { color: var(--color-ink-soft); }
+.prev-feedback-answer-value { font-weight: 700; color: var(--color-moss-dark); }
+.prev-feedback-note-accordion { margin-top: var(--spacing-2); }
+.prev-feedback-note-content {
+  font-size: var(--fs-sm);
+  color: var(--color-ink-soft);
+  white-space: pre-wrap;
+}
+
 .result-success-title { color: var(--color-gold); font-size: var(--fs-2xl); text-align: center; }
 .result-fail-title { color: var(--color-ink); text-align: center; }
 

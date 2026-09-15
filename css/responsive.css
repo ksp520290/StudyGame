@@ -100,6 +100,14 @@ input:focus, textarea:focus, select:focus {
   }
   .main-nav.hidden { display: none; }
   #screen-container { order: 1; }
+  /* 【追加要望対応】タブレット幅用の中央寄せ（#screen-containerへのmax-width＋margin:auto。
+     700px/1000px幅のメディアクエリ参照）が、横画面では右サイドバーを画面右端から
+     離してしまうため、横画面のときはこれを解除し、ナビゲーションが画面右端に
+     密着するようにする。 */
+  #screen-container {
+    max-width: none;
+    margin: 0;
+  }
 
   /* ホーム画面：「今日のおすすめ行動」と「自分の世界の様子」を横並びに */
   .home-panels-row {
