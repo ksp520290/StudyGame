@@ -474,7 +474,11 @@ const ReviewSystem = (() => {
       const item = QuestionSystem.buildQuestionsForLevel(entry.format, [question])[0];
       wrap.appendChild(QuizSystem.renderQuestionItem(item, (rawAnswer) => {
         const isCorrect = QuizSystem.checkAnswer(item, rawAnswer);
-        completeStarReview(entry, isCorrect, item.prompt, item.correctAnswer, rawAnswer, question.note);
+        // 【追加要望対応】Lv1（正誤）はcorrectAnswerが真偽値のため、そのまま渡すと
+        // 結果画面で「正答」「誤答」という文言になってしまう。実際の選択肢（answerText）を
+        // 優先して渡す（Lv2/Lv3はcorrectAnswerが既に実際の文字列なので値は変わらない）。
+        const correctDisplay = item.answerText != null ? item.answerText : item.correctAnswer;
+        completeStarReview(entry, isCorrect, item.prompt, correctDisplay, rawAnswer, question.note);
       }));
     } else {
       // "typing"：復習のタイピング形式と同じ、完全一致判定

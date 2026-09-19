@@ -64,8 +64,10 @@ const QuizSystem = (() => {
     const items = QuestionSystem.buildQuestionsForLevel(level, ctx.stage.questions);
     session = {
       genreId, stageId, level, items,
-      index: 0, userAnswers: [], hadWrongThisRun: false,
+      index: 0, userAnswers: [], hadWrongThisRun: false, voiceLine: null,
     };
+    // 【追加要望対応】serihu.jsonの読み込みを先読みしておく（1問目の正解時に間に合うように）。
+    if (typeof CharacterVoiceSystem !== "undefined") CharacterVoiceSystem.ensureLoaded();
     Router.navigate("quiz");
   }
 
@@ -89,7 +91,43 @@ const QuizSystem = (() => {
       if (prevAnswer) wrap.appendChild(renderPreviousFeedback(prevAnswer));
     }
 
+    // 【追加要望対応】問題画面下部にキャラクターを表示し、1問正解するごとに
+    // 声かけ（セリフ）を表示する。
+    wrap.appendChild(renderCharacterVoicePanel());
+
     root.appendChild(wrap);
+  }
+
+  /**
+   * 【追加要望対応】問題画面下部のキャラクター声かけパネル。
+   * そのジャンルに割り当てられたキャラクター（未取得でも仮の姿・絵文字で表示される）が、
+   * 直前に正解した際のセリフ（session.voiceLine）を話す。まだ何も正解していない
+   * 1問目では、待機中の案内文を表示する。
+   */
+  function renderCharacterVoicePanel() {
+    let avatarNode = Utils.el("span", { class: "quiz-voice-avatar" }, "🧑");
+    let name = "";
+    if (typeof CharacterSystem !== "undefined") {
+      const ctx = GameState.findStageContext(session.stageId);
+      const genre = ctx ? ctx.genre : null;
+      if (genre) {
+        CharacterSystem.ensureDefaultCharacterDefs();
+        const def = (CharacterSystem.getDefsForGenre(genre.id) || [])[0];
+        if (def) {
+          avatarNode = Utils.iconOrImage(def.image, "quiz-voice-avatar");
+          name = def.nickname || def.name || "";
+        }
+      }
+    }
+    const line = session.voiceLine;
+    return Utils.el("div", { class: "quiz-voice-panel" }, [
+      avatarNode,
+      Utils.el("div", { class: "quiz-voice-bubble-wrap" }, [
+        name ? Utils.el("div", { class: "quiz-voice-name" }, name) : null,
+        Utils.el("div", { class: "quiz-voice-bubble" + (line ? "" : " is-idle") },
+          line || "正解すると、ここで声をかけてくれるよ。"),
+      ]),
+    ]);
   }
 
   /**
@@ -119,6 +157,31 @@ const QuizSystem = (() => {
     return wrap;
   }
 
+  /**
+   * 【追加要望対応】Lv1（正誤）・Lv2（四択）の選択肢ボタンについて、文字が長すぎて
+   * 枠内（ボタン内）に収まらない（＝折り返しが発生する）場合は、横並びではなく
+   * 縦に1列で並べる表示に切り替える。
+   * ボタンがまだDOMに接続されていない（＝clientWidthが確定していない）ことがあるため、
+   * requestAnimationFrameで実際に描画された後に判定する。判定は「一時的にnowrapにして
+   * scrollWidthとclientWidthを比較する」方式で、判定後は元の折り返し設定に戻すため、
+   * 通常時の見た目には影響しない。
+   * @param {HTMLElement} containerEl 選択肢ボタンを内包する要素（quiz-choice-row / quiz-choice-grid）
+   */
+  function adjustChoiceLayoutIfOverflowing(containerEl) {
+    requestAnimationFrame(() => {
+      const buttons = Array.from(containerEl.querySelectorAll("button"));
+      if (buttons.length === 0) return;
+      const anyOverflow = buttons.some((btn) => {
+        const prevWhiteSpace = btn.style.whiteSpace;
+        btn.style.whiteSpace = "nowrap";
+        const overflow = btn.scrollWidth > btn.clientWidth + 1;
+        btn.style.whiteSpace = prevWhiteSpace;
+        return overflow;
+      });
+      if (anyOverflow) containerEl.classList.add("is-vertical-choices");
+    });
+  }
+
   function renderQuestionItem(item, onSubmit) {
     const submit = onSubmit || submitAnswer;
     const box = Utils.el("div", { class: "panel quiz-item" }, [
@@ -127,10 +190,12 @@ const QuizSystem = (() => {
 
     if (item.type === "true_false") {
       box.appendChild(Utils.el("div", { class: "quiz-shown-answer" }, `→ ${item.shownAnswer}`));
-      box.appendChild(Utils.el("div", { class: "quiz-choice-row" }, [
+      const choiceRow = Utils.el("div", { class: "quiz-choice-row" }, [
         Utils.el("button", { class: "btn btn-moss", onclick: () => submit(true) }, "正答"),
         Utils.el("button", { class: "btn btn-secondary", onclick: () => submit(false) }, "誤答"),
-      ]));
+      ]);
+      box.appendChild(choiceRow);
+      adjustChoiceLayoutIfOverflowing(choiceRow);
     } else if (item.type === "multiple_choice") {
       const choiceWrap = Utils.el("div", { class: "quiz-choice-grid" });
       item.choices.forEach((choice) => {
@@ -139,6 +204,7 @@ const QuizSystem = (() => {
         );
       });
       box.appendChild(choiceWrap);
+      adjustChoiceLayoutIfOverflowing(choiceWrap);
     } else if (item.type === "reorder") {
       box.appendChild(renderReorderUI(item, submit));
     }
@@ -220,6 +286,12 @@ const QuizSystem = (() => {
       // 【追加要望対応】☆フォルダ：問題単位で誤答回数を記録する（3回で☆フォルダ入り）。
       const addedToStar = GameState.recordQuestionMistake(item.questionId, session.genreId, session.stageId, session.level);
       if (addedToStar) Utils.showToast("この問題は☆フォルダに入りました（明日また出題されます）", "info");
+    } else if (typeof CharacterVoiceSystem !== "undefined") {
+      // 【追加要望対応】1問正解するごとに、キャラクターが声かけ（セリフ）をする。
+      const ctx = GameState.findStageContext(session.stageId);
+      CharacterVoiceSystem.ensureLoaded()
+        .then(() => { session.voiceLine = CharacterVoiceSystem.pickLine(ctx ? ctx.genre : null); })
+        .catch((err) => console.error("[quizSystem] セリフの取得に失敗しました", err));
     }
 
     // 【追加要望対応】正誤メッセージの表記を「正答」「誤答」に統一。
@@ -252,5 +324,8 @@ const QuizSystem = (() => {
   // 【Phase5変更】"fogStageSelect" は mapSystem.js が登録するため、ここでは登録しない。
   Router.registerScreen("quiz", renderQuizScreen);
 
-  return { startLevel, isLevelLocked, emptyStageProgress, levelLabel, renderQuestionItem, checkAnswer };
+  return {
+    startLevel, isLevelLocked, emptyStageProgress, levelLabel, renderQuestionItem, checkAnswer,
+    getSession: () => session,
+  };
 })();

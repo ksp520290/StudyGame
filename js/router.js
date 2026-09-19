@@ -482,6 +482,13 @@ const Router = (() => {
     wrap.appendChild(renderGithubSettingsGroup(state));
     wrap.appendChild(renderBackupAndDataGroup(state));
 
+    // 【追加要望対応】設定画面の最下部に「チュートリアル」ボタンを設置し、
+    // いつでも操作体験型チュートリアルをやり直せるようにする。
+    wrap.appendChild(Utils.el("button", {
+      class: "btn btn-secondary btn-block", style: "margin-top:20px;",
+      onclick: () => { if (typeof TutorialSystem !== "undefined") TutorialSystem.start(); },
+    }, "チュートリアル"));
+
     root.appendChild(wrap);
   }
 
@@ -537,6 +544,7 @@ const Router = (() => {
       { key: "genre", label: "エリア別", render: (c) => renderDataMgmtQuestionsTab(c, "genre") },
       { key: "questionset", label: "道別", render: (c) => renderDataMgmtQuestionsTab(c, "questionset") },
       { key: "stage", label: "ステージ別", render: (c) => renderDataMgmtQuestionsTab(c, "stage") },
+      { key: "cleanup", label: "整理", render: (c) => renderDataMgmtCleanupTab(c) },
     ];
     const group = settingsAccordion("データ管理", [
       Utils.el("p", { class: "explore-desc" },
@@ -590,6 +598,31 @@ const Router = (() => {
       Utils.el("label", { class: "settings-row" }, "バックアップを読み込む（選んだ形式のファイルを選択）"),
       fileInput,
     ]));
+  }
+
+  /**
+   * 【追加要望対応】「整理」タブ：ステージ数が1つ以下になった道（問題セット）を削除し、
+   * その結果道が0個になったジャンルも削除するクリーンアップ機能。
+   * 建築物・キャラクター・称号・コンパスなどは削除されない（GameState.cleanupEmptyContent参照）。
+   */
+  function renderDataMgmtCleanupTab(container) {
+    container.appendChild(Utils.el("p", { class: "explore-desc" },
+      "ステージ数が1つ以下になった「道」（問題セット）を削除し、その結果「道」が0個になった" +
+      "ジャンルも削除します。削除された道・ステージに紐づく復習予定なども一緒に整理されます。" +
+      "建築物・キャラクター・称号・コンパスなどは削除されません。"));
+    container.appendChild(Utils.el("button", {
+      class: "btn btn-secondary btn-block",
+      onclick: () => {
+        if (!confirm("ステージ数が1つ以下の道と、道が無くなったジャンルを削除します。元に戻せません。よろしいですか？")) return;
+        const result = GameState.cleanupEmptyContent();
+        if (result.removedQuestionSets === 0 && result.removedGenres === 0) {
+          Utils.showToast("削除対象はありませんでした", "info");
+        } else {
+          Utils.showToast(`道 ${result.removedQuestionSets}件・ジャンル ${result.removedGenres}件を削除しました`, "success");
+        }
+        navigate("settings");
+      },
+    }, "整理を実行する"));
   }
 
   /**

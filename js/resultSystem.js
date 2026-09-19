@@ -71,16 +71,20 @@ const ResultSystem = (() => {
 
     const list = Utils.el("div", { class: "panel answer-review-list" });
     userAnswers.forEach((a) => {
+      // 【追加要望対応】Lv1（正誤）はcorrectAnswerがtrue/falseの真偽値のため、そのまま
+      // 表示すると「正答」「誤答」という抽象的な文言になってしまう。実際に出題で使われた
+      // 選択肢（answerText）が分かっている場合はそちらを優先して表示する。
+      const correctDisplay = a.item.answerText != null ? a.item.answerText : a.item.correctAnswer;
       const row = Utils.el("div", { class: "answer-review-row " + (a.isCorrect ? "is-correct" : "is-wrong") }, [
         Utils.el("span", {}, a.item.prompt),
-        Utils.el("span", { class: "answer-correct-value" }, `正解: ${Utils.formatAnswerValue(a.item.correctAnswer)}`),
+        Utils.el("span", { class: "answer-correct-value" }, `正解: ${Utils.formatAnswerValue(correctDisplay)}`),
       ]);
       row.addEventListener("click", () => Utils.showAnswerDetailPopup({
         questionId: a.item.questionId,
         prompt: a.item.prompt,
         isCorrect: a.isCorrect,
         userAnswer: a.userAnswer,
-        correctAnswer: a.item.correctAnswer,
+        correctAnswer: correctDisplay,
         note: a.item.note,
       }));
       list.appendChild(row);
@@ -142,7 +146,12 @@ const ResultSystem = (() => {
      */
     function buildAnswerFaceContent(item) {
       const content = Utils.el("div", {}, []);
-      content.appendChild(Utils.el("div", { class: "flashcard-face-content" }, Utils.formatAnswerValue(item.correctAnswer)));
+      // 【追加要望対応】Lv1（正誤）はcorrectAnswerが真偽値のため、そのまま表示すると
+      // 「正答」「誤答」という文言になってしまう。実際に出題された選択肢（answerText）が
+      // 分かっている場合はそちらを表示する（Lv2/Lv3はcorrectAnswerが既に実際の文字列のため、
+      // answerTextと同じ値になり表示は変わらない）。
+      const correctDisplay = item.answerText != null ? item.answerText : item.correctAnswer;
+      content.appendChild(Utils.el("div", { class: "flashcard-face-content" }, Utils.formatAnswerValue(correctDisplay)));
 
       if (item.type === "multiple_choice" && Array.isArray(item.choices) && item.choices.length > 0) {
         const list = Utils.el("div", { class: "flashcard-choices-list" },

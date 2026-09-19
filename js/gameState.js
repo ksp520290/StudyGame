@@ -335,6 +335,67 @@ const GameState = (() => {
     return addedToStar;
   }
 
+  /**
+   * 【追加要望対応】整理（クリーンアップ）機能。
+   * 「ステージ数が1つ以下になった問題セット（道）」を削除し、その結果「問題セットが
+   * 0個になったジャンル」も削除する。削除された道・ステージを参照している進行データ
+   * （stageProgress／reviewSchedules／reviewHistory／starQuestions／questionMistakes／
+   * state.map）も矛盾が残らないようあわせて削除する。
+   * ただし、既に獲得済みの建築物・キャラクター・称号・コンパスなどは、対応するジャンルが
+   * 削除された後も失われない（仕様67章「損失回避：休んでも失わない」の対象と同様の考え方）
+   * ため、削除しない（genreIdが実在しない状態で残るだけで、動作・表示には影響しない）。
+   * @returns {{ removedQuestionSets: number, removedGenres: number, removedStageCount: number }}
+   */
+  function cleanupEmptyContent() {
+    let removedQuestionSets = 0;
+    let removedGenres = 0;
+    let removedStageCount = 0;
+
+    update((s) => {
+      const removedStageIds = new Set();
+      const removedQuestionSetIds = new Set();
+      const removedQuestionIds = new Set();
+
+      s.genres.forEach((genre) => {
+        const keptSets = [];
+        (genre.questionSets || []).forEach((qs) => {
+          const stageCount = (qs.quests || []).length;
+          if (stageCount <= 1) {
+            removedQuestionSetIds.add(qs.id);
+            (qs.quests || []).forEach((quest) => {
+              removedStageIds.add(quest.id);
+              (quest.questions || []).forEach((q) => removedQuestionIds.add(q.id));
+            });
+            removedQuestionSets += 1;
+            removedStageCount += stageCount;
+          } else {
+            keptSets.push(qs);
+          }
+        });
+        genre.questionSets = keptSets;
+      });
+
+      const beforeGenreCount = s.genres.length;
+      s.genres = s.genres.filter((g) => (g.questionSets || []).length > 0);
+      removedGenres = beforeGenreCount - s.genres.length;
+
+      if (removedStageIds.size > 0) {
+        removedStageIds.forEach((stageId) => { delete s.stageProgress[stageId]; });
+        s.reviewSchedules = (s.reviewSchedules || []).filter((r) => !removedStageIds.has(r.stageId));
+        s.reviewHistory = (s.reviewHistory || []).filter((h) => !removedStageIds.has(h.stageId));
+        s.starQuestions = (s.starQuestions || []).filter((e) => !removedStageIds.has(e.stageId));
+      }
+      if (removedQuestionSetIds.size > 0 && s.map) {
+        removedQuestionSetIds.forEach((qsId) => { delete s.map[qsId]; });
+      }
+      if (removedQuestionIds.size > 0 && s.questionMistakes) {
+        removedQuestionIds.forEach((qid) => { delete s.questionMistakes[qid]; });
+      }
+    });
+
+    return { removedQuestionSets, removedGenres, removedStageCount };
+  }
+
   function getLevel() {
     return state.user.loginDates.length;
   }
@@ -376,6 +437,7 @@ const GameState = (() => {
     findStageContext,
     findQuestionById,
     recordQuestionMistake,
+    cleanupEmptyContent,
     setDailyGoal,
     getDailyGoal,
     recordQuestCompletionForDailyGoal,
