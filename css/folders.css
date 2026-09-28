@@ -1,0 +1,91 @@
+/* =========================================================
+   folders.css
+   【追加要望対応】音読ディクテーション／読書記録の「フォルダ（見た目上のグループ分け）」、
+   および音読ディクテーション画面の余白・分割文一覧の見た目。
+   ========================================================= */
+
+/* --- 「フォルダを追加」「新しい〜を追加」ボタン周りの余白 --- */
+.folder-add-btn {
+  display: block;
+  margin-top: var(--spacing-3);
+  margin-bottom: var(--spacing-3); /* 「フォルダを追加」と「新しい教材／本を追加」の間 */
+}
+.folder-add-item-btn {
+  display: block;
+  margin-bottom: var(--spacing-4); /* 「新しい教材／本を追加」と、その下のフォルダ・教材・本の一覧の間 */
+}
+
+/* --- 一覧 --- */
+.folder-list-box { margin-top: var(--spacing-2); }
+.folder-list-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-height: 48px;
+  border-radius: var(--radius-sm);
+}
+.folder-items { display: flex; flex-direction: column; gap: var(--spacing-2); }
+.folder-controls { display: flex; gap: var(--spacing-2); flex-wrap: wrap; }
+.folder-controls .btn { flex: 1 1 140px; }
+.folder-empty-hint { font-size: var(--fs-sm); }
+
+@media (min-width: 1000px) {
+  .folder-items { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-3); }
+  .folder-items > .folder-empty-hint { grid-column: 1 / -1; }
+}
+
+/* --- ドラッグ操作 --- */
+.folder-draggable {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.folder-draggable.is-drag-source { opacity: 0.35; }
+.folder-drag-clone {
+  position: fixed;
+  z-index: 9999;
+  margin: 0;
+  pointer-events: none;
+  opacity: 0.92;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+  transform: scale(1.02);
+}
+body.folder-dragging { cursor: grabbing; user-select: none; -webkit-user-select: none; }
+.folder-list-wrap.is-dragging-active { outline: 2px dashed rgba(79, 107, 64, 0.45); outline-offset: 4px; }
+.folder-accordion.is-drop-target,
+.folder-list-wrap.is-drop-target {
+  outline: 3px dashed var(--color-moss-dark);
+  outline-offset: 2px;
+  background-color: rgba(111, 143, 92, 0.16);
+}
+
+/* --- 音読ディクテーション画面の余白 --- */
+.dict-row-spaced { margin-top: var(--spacing-3); } /* 「今の位置を開始にする」行と「試し再生／保存」行の間 */
+.dict-btn-gap { display: block; margin-top: var(--spacing-3); } /* 「この教材を削除する」と「一覧に戻る」の間など */
+.dict-reward-note { min-height: 1.4em; }
+
+/* --- 「▶ 練習する」画面：一文ごとに改行された分割文 --- */
+.dict-listen-list { display: flex; flex-direction: column; gap: var(--spacing-2); margin-top: var(--spacing-3); }
+.dict-sentence-btn {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  width: 100%;
+  text-align: left;
+  border: var(--border-thin);
+  cursor: pointer;
+  color: var(--color-ink);
+  font: inherit;
+}
+.dict-sentence-btn.is-playing { background-color: rgba(111, 143, 92, 0.28); border-color: var(--color-moss-dark); }
+.dict-sentence-btn.is-disabled { opacity: 0.55; cursor: not-allowed; }
+.dict-sentence-no { flex: 0 0 auto; min-width: 1.6em; color: var(--color-ink-soft); font-size: var(--fs-sm); }
+.dict-sentence-text { flex: 1 1 auto; word-break: break-word; }
+.dict-sentence-note { flex: 0 0 auto; font-size: var(--fs-sm); color: var(--color-ink-soft); }
+
+@media (hover: hover) and (pointer: fine) {
+  .dict-sentence-btn:not(.is-disabled):hover { filter: brightness(0.97); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .folder-drag-clone { transform: none; }
+}
