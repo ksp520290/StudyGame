@@ -115,6 +115,15 @@ const GameState = (() => {
       // 1件 = { id, title, sentences:[{id,text,audio:{fileId,start,end}|null}],
       //   audioFiles:[{id,name,dataUrl}], createdAt, updatedAt }
       dictationSets: [],
+      // 【追加要望対応】音読ディクテーション／読書記録の「フォルダ」（見た目上のグループ分け）。
+      // folderList.js が管理。1件 = { id, name, open }。各教材・各本は folderId（null=フォルダ外）を持つ。
+      dictationFolders: [],
+      bookFolders: [],
+      // 【追加要望対応】音読ディクテーションのコンパス報酬の受取記録（1日1回制限用）。
+      //   { [setId]: { listen:{date,amount}, dictation:{date,amount} } }
+      dictationRewards: {},
+      // 【追加要望対応】読書記録1冊分を書き上げると獲得できる「過去日記チケット」の所持枚数。
+      diaryTickets: 0,
 
       // --- Phase9：称号 ---
       // 獲得済み称号。1件 = { id, defId, label, genreId(null可), source:"builtin"|"custom", earnedAt }
@@ -203,6 +212,7 @@ const GameState = (() => {
       buildingDefs: [],
       diary: [], books: [],
       dictationSets: [],
+      dictationFolders: [], bookFolders: [], dictationRewards: {}, diaryTickets: 0,
       titles: [], titleDefs: [],
       questionMistakes: {}, starQuestions: [],
       // 【追加要望対応】「今日の目標」。旧セーブデータには無いため補完する。
@@ -396,6 +406,93 @@ const GameState = (() => {
     return { removedQuestionSets, removedGenres, removedStageCount };
   }
 
+  /**
+   * 【追加要望対応】設定→データ管理→整理タブの「指定して削除」用。
+   * 指定の組み合わせは次の3通りのみ有効（上位を指定せずに下位だけ指定するのは不可）：
+   *   genreIdのみ                      → そのエリア（ジャンル）をすべて削除
+   *   genreId + questionSetId          → その道（問題セット）だけを削除
+   *   genreId + questionSetId + stageId → そのステージだけを削除
+   * 削除対象を参照する進行データ（stageProgress／reviewSchedules／reviewHistory／
+   * starQuestions／questionMistakes／state.map）も一緒に整理する。建築物・キャラクター・
+   * 称号・コンパスは削除しない（cleanupEmptyContentと同じ、損失回避の方針）。
+   * @returns {{ ok:boolean, reason?:string, scope?:string, removedQuestionSets:number, removedStages:number, removedQuestions:number }}
+   */
+  function deleteContent({ genreId, questionSetId, stageId } = {}) {
+    const fail = (reason) => ({ ok: false, reason, removedQuestionSets: 0, removedStages: 0, removedQuestions: 0 });
+    if (!genreId) return fail("エリアが指定されていません");
+    if (stageId && !questionSetId) return fail("ステージを削除するには道の指定も必要です");
+    const genre = state.genres.find((g) => g.id === genreId);
+    if (!genre) return fail("指定のエリアが見つかりません");
+    let qsTarget = null;
+    let stageTarget = null;
+    if (questionSetId) {
+      qsTarget = (genre.questionSets || []).find((q) => q.id === questionSetId);
+      if (!qsTarget) return fail("指定の道が見つかりません");
+    }
+    if (stageId) {
+      stageTarget = (qsTarget.quests || []).find((q) => q.id === stageId);
+      if (!stageTarget) return fail("指定のステージが見つかりません");
+    }
+
+    const stageIds = new Set();
+    const qsIds = new Set();
+    const questionIds = new Set();
+    const collectStage = (quest) => {
+      stageIds.add(quest.id);
+      (quest.questions || []).forEach((q) => questionIds.add(q.id));
+    };
+    const collectQuestionSet = (qs) => {
+      qsIds.add(qs.id);
+      (qs.quests || []).forEach(collectStage);
+    };
+
+    let scope;
+    if (stageTarget) {
+      scope = "stage";
+      collectStage(stageTarget);
+    } else if (qsTarget) {
+      scope = "questionSet";
+      collectQuestionSet(qsTarget);
+    } else {
+      scope = "genre";
+      (genre.questionSets || []).forEach(collectQuestionSet);
+    }
+
+    update((s) => {
+      if (scope === "genre") {
+        s.genres = s.genres.filter((g) => g.id !== genreId);
+      } else {
+        const g = s.genres.find((x) => x.id === genreId);
+        if (!g) return;
+        if (scope === "questionSet") {
+          g.questionSets = (g.questionSets || []).filter((q) => q.id !== questionSetId);
+        } else {
+          const qs = (g.questionSets || []).find((q) => q.id === questionSetId);
+          if (qs) qs.quests = (qs.quests || []).filter((q) => q.id !== stageId);
+        }
+      }
+      stageIds.forEach((id) => { delete s.stageProgress[id]; });
+      s.reviewSchedules = (s.reviewSchedules || []).filter((r) => !stageIds.has(r.stageId));
+      s.reviewHistory = (s.reviewHistory || []).filter((h) => !stageIds.has(h.stageId));
+      s.starQuestions = (s.starQuestions || []).filter((e) => !stageIds.has(e.stageId));
+      if (s.map) {
+        qsIds.forEach((id) => { delete s.map[id]; });
+        // ステージ単体の削除では、道の地図データ内の当該ステージ位置だけ取り除く
+        if (scope === "stage" && s.map[questionSetId] && s.map[questionSetId].stagePositions) {
+          delete s.map[questionSetId].stagePositions[stageId];
+        }
+      }
+      if (s.questionMistakes) questionIds.forEach((id) => { delete s.questionMistakes[id]; });
+    });
+
+    return {
+      ok: true, scope,
+      removedQuestionSets: scope === "genre" ? qsIds.size : (scope === "questionSet" ? 1 : 0),
+      removedStages: stageIds.size,
+      removedQuestions: questionIds.size,
+    };
+  }
+
   function getLevel() {
     return state.user.loginDates.length;
   }
@@ -438,6 +535,7 @@ const GameState = (() => {
     findQuestionById,
     recordQuestionMistake,
     cleanupEmptyContent,
+    deleteContent,
     setDailyGoal,
     getDailyGoal,
     recordQuestCompletionForDailyGoal,

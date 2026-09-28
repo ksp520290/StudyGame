@@ -26,11 +26,19 @@ const BgmSystem = (() => {
     quiz: "stage",
     reviewPlay: "stage",
     starReviewPlay: "stage",
+    // 【追加要望対応】音読ディクテーション関連の画面でもstage（stage.m4a）を流す
+    dictationList: "stage",
+    dictationDetail: "stage",
+    dictationListen: "stage",
+    dictationPractice: "stage",
   };
   const SILENT_SCREENS = new Set(["title"]);
 
   let audioEl = null;
   let currentTrack = null;
+  // 【追加要望対応】ディクテーション用の音源が再生されたら、"探索"画面に戻るまで
+  // stage（stage.m4a）を停止する。停止中は他の曲（home/settings等）には影響しない。
+  let stageSuspended = false;
 
   function ensureAudioEl() {
     if (audioEl) return audioEl;
@@ -47,6 +55,7 @@ const BgmSystem = (() => {
   const TRACK_EXTENSIONS = ["mp3", "m4a"];
 
   function playTrack(trackName) {
+    if (trackName === "stage" && stageSuspended) return; // 探索画面に戻るまでstageは流さない
     if (currentTrack === trackName) return; // 同じ曲がすでに流れている場合は何もしない
     const el = ensureAudioEl();
     currentTrack = trackName;
@@ -60,6 +69,7 @@ const BgmSystem = (() => {
           // ブラウザの自動再生制限でブロックされた場合、次のユーザー操作（タップ/クリック）で再試行する。
           // ファイル自体が存在しない場合もここに来るが、アプリの動作には影響させない。
           const retry = () => {
+            if (currentTrack !== trackName) return; // 停止・切替済みなら再開しない
             el.play().catch(() => {});
             document.removeEventListener("click", retry);
           };
@@ -81,13 +91,23 @@ const BgmSystem = (() => {
     currentTrack = null;
   }
 
+  /**
+   * ディクテーション用の音源が再生されたときに呼ぶ。stageを止め、探索画面に戻るまで再開しない。
+   * 何度呼んでも安全（冪等）。
+   */
+  function suspendStageUntilExplore() {
+    stageSuspended = true;
+    if (currentTrack === "stage") stop();
+  }
+
   /** router.jsのnavigate()から画面名を渡して呼ぶ */
   function onScreenChange(screenName) {
+    if (screenName === "explore") stageSuspended = false;
     const track = SCREEN_TRACK[screenName];
     if (track) { playTrack(track); return; }
     if (SILENT_SCREENS.has(screenName)) { stop(); return; }
     // それ以外の画面は現在のBGMを維持する（何もしない）
   }
 
-  return { onScreenChange };
+  return { onScreenChange, suspendStageUntilExplore };
 })();

@@ -39,6 +39,35 @@ const ReadingSystem = (() => {
     return details;
   }
 
+  /**
+   * 【追加要望対応】読書記録を「一冊分」書き上げたときに、過去日記チケットを1枚獲得する。
+   * 「一冊分」の判定（仕様に無いため判断した。HANDOFF.md参照）：
+   *   ・タイトルが初期値（無題の本）以外で入力されている
+   *   ・本の要約が記入されている
+   *   ・章ごとの要約が1つ以上記入されている
+   * 1冊につき1回だけ獲得できる（book.diaryTicketGranted）。
+   */
+  function isBookComplete(book) {
+    if (!book) return false;
+    const title = (book.title || "").trim();
+    if (!title || title === "無題の本") return false;
+    if (!(book.bookSummary || "").trim()) return false;
+    return (book.chapters || []).some((c) => (c.summary || "").trim());
+  }
+
+  function awardTicketIfComplete(bookId) {
+    let granted = false;
+    GameState.update((state) => {
+      const b = state.books.find((x) => x.id === bookId);
+      if (!b || b.diaryTicketGranted || !isBookComplete(b)) return;
+      b.diaryTicketGranted = true;
+      state.diaryTickets = (state.diaryTickets || 0) + 1;
+      granted = true;
+    });
+    if (granted) Utils.showToast("🎫 読書記録を一冊分書き上げました！過去の日記を書けるチケットを1枚獲得", "success");
+    return granted;
+  }
+
   function getAll() {
     return GameState.getState().books || [];
   }
@@ -57,6 +86,8 @@ const ReadingSystem = (() => {
         publisher: (publisher || "").trim().slice(0, 60),
         tags: [],
         rereadFlag: false,
+        folderId: null,
+        diaryTicketGranted: false,
         bookSummary: "",
         chapters: [],
         quotes: [],
@@ -76,6 +107,7 @@ const ReadingSystem = (() => {
       Object.assign(b, patch);
       b.updatedAt = Utils.todayStr();
     });
+    awardTicketIfComplete(id);
   }
 
   function deleteBook(id) {
@@ -99,6 +131,7 @@ const ReadingSystem = (() => {
       const c = b?.chapters.find((x) => x.id === chapterId);
       if (c) c.summary = summary.slice(0, 200);
     });
+    awardTicketIfComplete(bookId);
   }
 
   function addQuote(bookId, text, note) {
@@ -167,7 +200,7 @@ const ReadingSystem = (() => {
     wrap.appendChild(Utils.el("h2", {}, "読書記録"));
 
     const state = { keyword: "", tag: "", excludeKeyword: "" };
-    const resultsBox = Utils.el("div", { class: "books-list" });
+    const resultsBox = Utils.el("div", { class: "folder-list-box" });
 
     const searchPanel = Utils.el("div", { class: "panel" });
     const kwInput = Utils.el("input", { type: "text", class: "review-typing-input", placeholder: "キーワード検索" });
@@ -177,9 +210,10 @@ const ReadingSystem = (() => {
       ...getAllTags().map((t) => Utils.el("option", { value: t }, t)),
     ]);
     const runSearch = () => {
-      const results = search({ keyword: kwInput.value.trim(), tag: tagSelect.value, excludeKeyword: excludeInput.value.trim() });
-      renderResults(results);
+      renderResults(currentResults());
     };
+    const isFiltering = () => !!(kwInput.value.trim() || tagSelect.value || excludeInput.value.trim());
+    const currentResults = () => search({ keyword: kwInput.value.trim(), tag: tagSelect.value, excludeKeyword: excludeInput.value.trim() });
     [kwInput, excludeInput].forEach((inp) => inp.addEventListener("input", runSearch));
     tagSelect.addEventListener("change", runSearch);
     searchPanel.appendChild(Utils.el("h3", {}, "検索"));
@@ -188,30 +222,31 @@ const ReadingSystem = (() => {
     searchPanel.appendChild(tagSelect);
     wrap.appendChild(searchPanel);
 
+    // 【追加要望対応】「フォルダを追加」を「新しい本を追加」の上に配置（見た目上のグループ分け）
+    wrap.appendChild(FolderList.createAddFolderButton("bookFolders", () => renderResults(currentResults())));
     wrap.appendChild(Utils.el("button", {
-      class: "btn btn-primary btn-block",
+      class: "btn btn-primary btn-block folder-add-item-btn",
       onclick: () => Router.navigate("bookDetail", { bookId: null }),
     }, "＋ 新しい本を追加"));
 
     wrap.appendChild(resultsBox);
 
     function renderResults(list) {
-      resultsBox.innerHTML = "";
-      if (list.length === 0) {
-        resultsBox.appendChild(Utils.el("p", { class: "empty-state" }, "本がありません。"));
-        return;
-      }
-      list.forEach((b) => {
-        resultsBox.appendChild(
-          Utils.el("button", { class: "panel book-list-row", onclick: () => Router.navigate("bookDetail", { bookId: b.id }) }, [
-            Utils.el("h3", {}, b.title + (b.rereadFlag ? " 🔁" : "")),
-            Utils.el("p", {}, b.author || "著者未設定"),
-            Utils.el("div", { class: "progress-meta" }, [
-              Utils.el("span", {}, b.tags.length ? `#${b.tags.join(" #")}` : "タグなし"),
-              Utils.el("span", {}, `更新: ${b.updatedAt}`),
-            ]),
-          ])
-        );
+      FolderList.render(resultsBox, {
+        foldersKey: "bookFolders",
+        itemsKey: "books",
+        items: list,
+        filtering: isFiltering(),
+        emptyMessage: "本がありません。",
+        onChange: () => renderResults(currentResults()),
+        renderItem: (b) => Utils.el("button", { class: "panel book-list-row", onclick: () => Router.navigate("bookDetail", { bookId: b.id }) }, [
+          Utils.el("h3", {}, b.title + (b.rereadFlag ? " 🔁" : "")),
+          Utils.el("p", {}, b.author || "著者未設定"),
+          Utils.el("div", { class: "progress-meta" }, [
+            Utils.el("span", {}, b.tags.length ? `#${b.tags.join(" #")}` : "タグなし"),
+            Utils.el("span", {}, `更新: ${b.updatedAt}`),
+          ]),
+        ]),
       });
     }
 
@@ -402,6 +437,6 @@ const ReadingSystem = (() => {
     getAll, getById, createBook, updateBook, deleteBook,
     addChapter, updateChapterSummary, addQuote, addLadderItem,
     addCriticalQuestion, updateCriticalAnswer, setTags, search, getAllTags,
-    DEFAULT_CRITICAL_QUESTIONS,
+    DEFAULT_CRITICAL_QUESTIONS, isBookComplete,
   };
 })();

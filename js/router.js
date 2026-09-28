@@ -623,6 +623,97 @@ const Router = (() => {
         navigate("settings");
       },
     }, "整理を実行する"));
+
+    renderTargetedDeleteSection(container);
+  }
+
+  /**
+   * 【追加要望対応】「整理」タブ：エリア／道／ステージを指定して削除する。
+   *   エリアのみ指定           → そのエリア全体を削除
+   *   エリア＋道を指定         → その道だけを削除
+   *   エリア＋道＋ステージ指定 → そのステージだけを削除
+   * 上位を指定しないと下位は選べない（道はエリア未指定だと無効、ステージは道未指定だと無効）。
+   */
+  function renderTargetedDeleteSection(container) {
+    const box = Utils.el("div", { class: "panel", style: "margin-top:16px;" });
+    box.appendChild(Utils.el("h3", {}, "指定して削除"));
+    box.appendChild(Utils.el("p", { class: "explore-desc" },
+      "エリアだけを選ぶとそのエリア全体、エリアと道を選ぶとその道だけ、エリア・道・ステージを選ぶとそのステージだけが削除されます。" +
+      "建築物・キャラクター・称号・コンパスは削除されません。"));
+
+    const genreSelect = Utils.el("select", { class: "review-typing-input" });
+    const qsSelect = Utils.el("select", { class: "review-typing-input" });
+    const stageSelect = Utils.el("select", { class: "review-typing-input" });
+    const deleteBtn = Utils.el("button", { class: "btn btn-secondary btn-block", style: "margin-top:10px;" }, "指定した範囲を削除する");
+
+    function fill(select, placeholder, items) {
+      select.innerHTML = "";
+      select.appendChild(Utils.el("option", { value: "" }, placeholder));
+      items.forEach((it) => select.appendChild(Utils.el("option", { value: it.id }, it.name)));
+    }
+    function currentGenre() {
+      return GameState.getState().genres.find((g) => g.id === genreSelect.value) || null;
+    }
+    function currentQuestionSet() {
+      const g = currentGenre();
+      return g ? (g.questionSets || []).find((q) => q.id === qsSelect.value) || null : null;
+    }
+    function refreshQuestionSets() {
+      const g = currentGenre();
+      fill(qsSelect, "道を指定しない（エリア全体を削除）", g ? (g.questionSets || []) : []);
+      qsSelect.disabled = !g;
+      refreshStages();
+    }
+    function refreshStages() {
+      const qs = currentQuestionSet();
+      fill(stageSelect, "ステージを指定しない（道全体を削除）", qs ? (qs.quests || []) : []);
+      stageSelect.disabled = !qs;
+      refreshButton();
+    }
+    function refreshButton() {
+      deleteBtn.disabled = !genreSelect.value;
+    }
+
+    fill(genreSelect, "エリアを選択", GameState.getState().genres);
+    genreSelect.addEventListener("change", refreshQuestionSets);
+    qsSelect.addEventListener("change", refreshStages);
+    stageSelect.addEventListener("change", refreshButton);
+
+    deleteBtn.addEventListener("click", () => {
+      const g = currentGenre();
+      const qs = currentQuestionSet();
+      const stage = qs ? (qs.quests || []).find((q) => q.id === stageSelect.value) : null;
+      if (!g) { Utils.showToast("エリアを選択してください", "error"); return; }
+      let message;
+      if (stage) message = `ステージ「${stage.name}」（${g.name}／${qs.name}）を削除します。含まれる問題も削除されます。元に戻せません。よろしいですか？`;
+      else if (qs) message = `道「${qs.name}」（${g.name}）を削除します。含まれるステージ・問題もすべて削除されます。元に戻せません。よろしいですか？`;
+      else message = `エリア「${g.name}」を削除します。含まれる道・ステージ・問題もすべて削除されます。元に戻せません。よろしいですか？`;
+      if (!confirm(message)) return;
+
+      const result = GameState.deleteContent({
+        genreId: g.id,
+        questionSetId: qs ? qs.id : undefined,
+        stageId: stage ? stage.id : undefined,
+      });
+      if (!result.ok) {
+        console.error("[router] 指定削除に失敗しました", result.reason);
+        Utils.showToast("削除できませんでした: " + result.reason, "error");
+        return;
+      }
+      const label = result.scope === "stage" ? "ステージ" : (result.scope === "questionSet" ? "道" : "エリア");
+      Utils.showToast(`${label}を削除しました（ステージ${result.removedStages}件・問題${result.removedQuestions}問）`, "success");
+      navigate("settings");
+    });
+
+    box.appendChild(Utils.el("label", { class: "diary-field-label" }, "エリア"));
+    box.appendChild(genreSelect);
+    box.appendChild(Utils.el("label", { class: "diary-field-label" }, "道"));
+    box.appendChild(qsSelect);
+    box.appendChild(Utils.el("label", { class: "diary-field-label" }, "ステージ"));
+    box.appendChild(stageSelect);
+    box.appendChild(deleteBtn);
+    container.appendChild(box);
+    refreshQuestionSets();
   }
 
   /**
